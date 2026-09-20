@@ -1,4 +1,4 @@
-# Changelog — v2.7.0 → v2.8.0
+# Changelog — v2.7.0 → v2.8.0 (2026-09-20)
 
 ### Added
 
@@ -15,8 +15,9 @@
 - Highlight unified: left/right-click and preview nav all route through `HighlightManager`
 - `StickerCell::mousePressEvent` only emits signals; MainWindow owns highlight state
 - `StickerCell::setHighlighted` uses `QApplication::palette()` for consistent color
-- Preview dialog simplified to two-zone layout; bottom action bar removed
+- Preview dialog simplified to two-zone layout
 - Preview hover uses `QApplication` eventFilter; `onPreviewFileChanged` scrolls by index
+- Recent picture refactor to my drawing, which looks suitable
 
 # Changelog — v2.6.0 → v2.7.0 (2026.08.14)
 
