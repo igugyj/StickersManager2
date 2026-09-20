@@ -65,6 +65,7 @@ private:
     void buildFromConfig();
     void rebuildList();
     void validateAllHotkeys();
+    bool hotkeyInUse(int skipIdx, const QString &hk) const;
     void swapLibraries(int a, int b);
     void syncCardIndices();
     LibraryConfig collectOne(int index) const;

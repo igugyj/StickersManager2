@@ -92,9 +92,6 @@ BaseSettingsPage::BaseSettingsPage(ConfigManager *config, QWidget *parent)
 
     m_doubleClickTarget = new QComboBox(this);
     populateTargets();
-    connect(m_doubleClickTarget, &QComboBox::currentIndexChanged, this, [this](int) {
-        // update in memory on change, save is handled by dialog's onSave
-    });
 
     trayForm->addRow("Double-click action:", m_doubleClickTarget);
     contentLayout->addWidget(trayGroup);
@@ -214,10 +211,10 @@ void BaseSettingsPage::updateCheckStatus() {
     bool newer = UpdateChecker::compareVersions(r.latestVersion, AppInfo::version()) > 0;
     if (newer) {
         m_checkStatus->setText("Update available: " + r.latestVersion);
-        m_checkStatus->setStyleSheet("color: #ff9800;");
+        m_checkStatus->setStyleSheet("color: orange;");
     } else {
         m_checkStatus->setText("You are running the latest version: " + AppInfo::version());
-        m_checkStatus->setStyleSheet("color: #4caf50;");
+        m_checkStatus->setStyleSheet("color: green;");
     }
     m_checkStatus->show();
 }
@@ -235,7 +232,7 @@ void BaseSettingsPage::checkForUpdates() {
 
         if (!success) {
             m_checkStatus->setText("Error: " + error);
-            m_checkStatus->setStyleSheet("color: #d32f2f;");
+            m_checkStatus->setStyleSheet("color: red;");
             return;
         }
 
@@ -245,10 +242,11 @@ void BaseSettingsPage::checkForUpdates() {
                                      "You are running the latest version: " + AppInfo::version());
         } else {
             auto result = QMessageBox::question(this, "Update Available",
-                "Current version: " + AppInfo::version() + "\n"
-                "Latest version: " + latestVersion + "\n\n"
-                "Open release page?",
-                QMessageBox::Yes | QMessageBox::No);
+                                                "Current version: " + AppInfo::version() +
+                                                    "\nLatest version: " +
+                                                    latestVersion +
+                                                    "\n\nOpen release page?",
+                                                QMessageBox::Yes | QMessageBox::No);
             if (result == QMessageBox::Yes)
                 launch(AppInfo::repoUrl() + "/releases/tag/" + latestVersion);
         }

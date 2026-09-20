@@ -28,12 +28,6 @@ void AsyncThumbnailLoader::loadThumbnail(const QString &filePath, const QSize &t
     m_threadPool->start(task);
 }
 
-void AsyncThumbnailLoader::loadThumbnails(const QVector<QPair<QString, QSize> > &thumbnails) {
-    for (const auto &item: thumbnails) {
-        loadThumbnail(item.first, item.second);
-    }
-}
-
 void AsyncThumbnailLoader::cancelAll() {
     QMutexLocker locker(&m_mutex);
     m_pendingLoads.clear();
@@ -48,10 +42,7 @@ void AsyncThumbnailLoader::handleThumbnailLoaded(const QString &filePath, const 
     }
 
     m_pendingLoads.remove(filePath);
-
-    if (!pixmap.isNull()) {
-        emit thumbnailLoaded(filePath, pixmap);
-    }
+    emit thumbnailLoaded(filePath, pixmap);
 }
 
 AsyncThumbnailLoader::LoadTask::LoadTask(const QString &filePath, const QSize &targetSize,
@@ -77,21 +68,26 @@ void AsyncThumbnailLoader::LoadTask::run() {
     }
 }
 
+// Single failure placeholder shared by every load failure path.
+static QImage failedImage(const QSize &size) {
+    QImage img(size, QImage::Format_ARGB32);
+    img.fill(QColor(240, 240, 240));
+    QPainter painter(&img);
+    painter.setPen(QColor(180, 180, 180));
+    painter.setFont(QFont("Arial", 8));
+    painter.drawText(img.rect(), Qt::AlignCenter, "Load Failed");
+    return img;
+}
+
 QImage AsyncThumbnailLoader::loadThumbnailInternal(const QString &filePath, const QSize &targetSize) {
     QFileInfo fileInfo(filePath);
     if (!fileInfo.exists()) {
-        return QImage();
+        return failedImage(targetSize);
     }
 
     QImage image = ImageLoader::loadImageScaled(filePath, targetSize);
     if (image.isNull()) {
-        QImage placeholder(targetSize, QImage::Format_ARGB32);
-        placeholder.fill(QColor(240, 240, 240));
-        QPainter painter(&placeholder);
-        painter.setPen(QColor(180, 180, 180));
-        painter.setFont(QFont("Arial", 8));
-        painter.drawText(placeholder.rect(), Qt::AlignCenter, "Load Failed");
-        return placeholder;
+        return failedImage(targetSize);
     }
 
     return image;

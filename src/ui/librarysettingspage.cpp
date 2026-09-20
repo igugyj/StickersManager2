@@ -2,6 +2,7 @@
 #include "configmanager.h"
 #include "hotkeycapture.h"
 #include "convertcodetostring.hpp"
+#include "settingswidgets.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -41,77 +42,46 @@
 #include "imageloader.h"
 #include "fsutil.hpp"
 
-static const QStringList BOOL_ITEMS = {"General", "On", "Off"};
-
-static QSpinBox *makeSpinBox(int min, int max, int val, QWidget *parent) {
-    auto *sb = new QSpinBox(parent);
-    sb->setRange(min, max);
-    sb->setValue(val);
-    sb->setSpecialValueText("General");
-    return sb;
-}
-
-static QSpinBox *makePlainSpinBox(int min, int max, int val, QWidget *parent) {
-    auto *sb = new QSpinBox(parent);
-    sb->setRange(min, max);
-    sb->setValue(val);
-    return sb;
-}
-
-static QComboBox *makeBoolCombo(const QString &current, QWidget *parent) {
-    auto *cb = new QComboBox(parent);
-    cb->addItems(BOOL_ITEMS);
-    int idx = BOOL_ITEMS.indexOf(current);
-    if (idx < 0) idx = 0;
-    cb->setCurrentIndex(idx);
-    return cb;
-}
-
-static QString boolToCombo(bool val) { return val ? "On" : "Off"; }
-
 static QStringList computeLibraryStats(const QString &libPath)
 {
     struct CatInfo
     {
-        QString name;
         int count = 0;
         qint64 bytes = 0;
     };
-    QVector<CatInfo> cats;
     QDir rootDir(libPath);
     if (!rootDir.exists())
         return QStringList();
 
-    QStringList categoryDirs = rootDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    QHash<QString, CatInfo> info;
+    QStringList order;
+    forEachStickerFile(libPath, [&](const QString &categoryName, const QFileInfo &fi) {
+        if (!info.contains(categoryName)) {
+            info[categoryName] = CatInfo{};
+            order.append(categoryName);
+        }
+        info[categoryName].bytes += fi.size();
+        if (ImageLoader::isFormatSupported(fi.absoluteFilePath()))
+            ++info[categoryName].count;
+    });
+
     qint64 totalBytes = 0;
     int totalStickers = 0;
-    for (const QString &categoryName : categoryDirs)
-    {
-        CatInfo ci;
-        ci.name = categoryName;
-        QDir categoryDir(libPath + "/" + categoryName);
-        const QFileInfoList files = categoryDir.entryInfoList(QDir::Files, QDir::Name);
-        for (const QFileInfo &fi : files)
-        {
-            if (isPreviewFile(fi.fileName()))
-                continue;
-            ci.bytes += fi.size();
-            if (ImageLoader::isFormatSupported(fi.absoluteFilePath()))
-                ++ci.count;
-        }
-        totalBytes += ci.bytes;
-        totalStickers += ci.count;
-        cats.append(ci);
+    for (const QString &categoryName : order) {
+        totalBytes += info[categoryName].bytes;
+        totalStickers += info[categoryName].count;
     }
 
     QStringList result;
     result.append(QString("%1 (%2 categories)\nTotal: %3 stickers, %4")
                       .arg(rootDir.dirName())
-                      .arg(cats.size())
+                      .arg(order.size())
                       .arg(totalStickers)
                       .arg(formatBytes(totalBytes)));
-    for (const CatInfo &ci : cats)
-        result.append(QString("%1\t%2\t%3").arg(ci.name).arg(ci.count).arg(formatBytes(ci.bytes)));
+    for (const QString &categoryName : order)
+        result.append(QString("%1\t%2\t%3").arg(categoryName)
+                          .arg(info[categoryName].count)
+                          .arg(formatBytes(info[categoryName].bytes)));
     return result;
 }
 
@@ -400,15 +370,7 @@ void LibrarySettingsPage::rebuildList() {
         auto *hkRow = new QHBoxLayout;
         auto *hotkeyBtn = new HotkeyCaptureButton;
         hotkeyBtn->setConflictChecker([this, idx](const QString &hk) {
-            if (hk.isEmpty()) return false;
-            for (int j = 0; j < m_libs.size(); ++j) {
-                if (j == idx || !m_libs[j].hotkeyBtn || !m_libs[j].enabledCheck ||
-                    !m_libs[j].enabledCheck->isChecked())
-                    continue;
-                if (ShortcutCompare::compareShortcutKeys(hk, m_libs[j].hotkeyBtn->hotkey()))
-                    return true;
-            }
-            return false;
+            return hotkeyInUse(idx, hk);
         });
         hotkeyBtn->setHotkey(libCfg.hotkey);
         auto *enabledCheck = new QCheckBox("Enable Hotkey");
@@ -446,23 +408,20 @@ void LibrarySettingsPage::rebuildList() {
                              : false;
         auto *useCustomGeometry = new QCheckBox("Use custom geometry", this);
         useCustomGeometry->setChecked(useCustom);
-        auto *winPosX = makePlainSpinBox(-9999, 9999, pos.x(), this);
-        auto *winPosY = makePlainSpinBox(-9999, 9999, pos.y(), this);
-        auto *winW = makePlainSpinBox(0, 9999, sz.width(), this);
-        auto *winH = makePlainSpinBox(0, 9999, sz.height(), this);
+        auto *winPosX = makeSpinBox(-9999, 9999, pos.x(), this);
+        auto *winPosY = makeSpinBox(-9999, 9999, pos.y(), this);
+        auto *winW = makeSpinBox(0, 9999, sz.width(), this);
+        auto *winH = makeSpinBox(0, 9999, sz.height(), this);
         for (QSpinBox *sb : {winPosX, winPosY, winW, winH})
             sb->setEnabled(useCustom);
         connect(useCustomGeometry, &QCheckBox::toggled, this, [winPosX, winPosY, winW, winH](bool checked) {
             for (QSpinBox *sb : {winPosX, winPosY, winW, winH})
                 sb->setEnabled(checked);
         });
-        auto *alwaysOnTop = new QComboBox(this);
-        alwaysOnTop->addItems(BOOL_ITEMS);
-        QString aot = winSettings.contains("alwaysOnTop")
-                          ? boolToCombo(winSettings["alwaysOnTop"].toBool())
-                          : "General";
-        int aotIdx = BOOL_ITEMS.indexOf(aot);
-        alwaysOnTop->setCurrentIndex(aotIdx < 0 ? 0 : aotIdx);
+        auto *alwaysOnTop = makeBoolCombo(
+            winSettings.contains("alwaysOnTop")
+                ? boolToCombo(winSettings["alwaysOnTop"].toBool())
+                : "General", this);
 
         auto *posRow = new QHBoxLayout;
         posRow->addWidget(new QLabel("X:"));
@@ -484,9 +443,9 @@ void LibrarySettingsPage::rebuildList() {
         // -- UI overrides --
         auto *uiOv = new QGroupBox("UI");
         auto *uiOvForm = new QFormLayout(uiOv);
-        auto *ovGridCellSize = makeSpinBox(0, 400, libCfg.settings["ui"].toObject()["gridCellSize"].toInt(0), this);
-        auto *ovCategoryBtnSize = makeSpinBox(0, 300, libCfg.settings["ui"].toObject()["categoryButtonSize"].toInt(0), this);
-        auto *ovRecentLimit = makeSpinBox(0, 1000, libCfg.settings["ui"].toObject()["recentLimit"].toInt(0), this);
+        auto *ovGridCellSize = makeOverrideSpinBox(0, 400, libCfg.settings["ui"].toObject()["gridCellSize"].toInt(0), this);
+        auto *ovCategoryBtnSize = makeOverrideSpinBox(0, 300, libCfg.settings["ui"].toObject()["categoryButtonSize"].toInt(0), this);
+        auto *ovRecentLimit = makeOverrideSpinBox(0, 1000, libCfg.settings["ui"].toObject()["recentLimit"].toInt(0), this);
         auto *ovRecentEnabled = makeBoolCombo(
             libCfg.settings["ui"].toObject().contains("recentEnabled")
                 ? boolToCombo(libCfg.settings["ui"].toObject()["recentEnabled"].toBool())
@@ -515,18 +474,10 @@ void LibrarySettingsPage::rebuildList() {
         auto *animThumbRow = new QWidget(this);
         auto *animThumbLayout = new QHBoxLayout(animThumbRow);
         animThumbLayout->setContentsMargins(0, 0, 0, 0);
-        auto *animThumbInfoBtn = new QPushButton(animThumbRow);
-        animThumbInfoBtn->setIcon(style()->standardIcon(QStyle::SP_MessageBoxWarning));
-        animThumbInfoBtn->setIconSize(QSize(16, 16));
-        animThumbInfoBtn->setFixedSize(20, 20);
-        animThumbInfoBtn->setFlat(true);
-        animThumbInfoBtn->setCursor(Qt::PointingHandCursor);
-        connect(animThumbInfoBtn, &QPushButton::clicked, this, []() {
-            QMessageBox::information(nullptr, "Animate Thumbnails",
-                "Enabling this may cause lag or stutter when the library contains "
-                "many animated files. It is not recommended to enable it when there "
-                "are too many animated files.");
-        });
+        auto *animThumbInfoBtn = makeInfoButton("Animate Thumbnails",
+            "Enabling this may cause lag or stutter when the library contains "
+            "many animated files. It is not recommended to enable it when there "
+            "are too many animated files.", animThumbRow);
         animThumbLayout->addWidget(ovAnimThumb, 1);
         animThumbLayout->addWidget(animThumbInfoBtn, 0, Qt::AlignLeft);
         auto *ovAnimPrev = makeBoolCombo(
@@ -841,23 +792,23 @@ LibraryConfig LibrarySettingsPage::collectOne(int index) const {
 void LibrarySettingsPage::validateAllHotkeys() {
     for (int i = 0; i < m_libs.size(); ++i) {
         bool conflict = false;
-        if (m_libs[i].hotkeyBtn && m_libs[i].enabledCheck && m_libs[i].enabledCheck->isChecked()) {
-            const QString hk = m_libs[i].hotkeyBtn->hotkey();
-            if (!hk.isEmpty()) {
-                for (int j = 0; j < m_libs.size(); ++j) {
-                    if (i == j || !m_libs[j].hotkeyBtn || !m_libs[j].enabledCheck ||
-                        !m_libs[j].enabledCheck->isChecked())
-                        continue;
-                    if (ShortcutCompare::compareShortcutKeys(hk, m_libs[j].hotkeyBtn->hotkey())) {
-                        conflict = true;
-                        break;
-                    }
-                }
-            }
-        }
+        if (m_libs[i].hotkeyBtn && m_libs[i].enabledCheck && m_libs[i].enabledCheck->isChecked())
+            conflict = hotkeyInUse(i, m_libs[i].hotkeyBtn->hotkey());
         if (m_libs[i].hotkeyBtn)
             m_libs[i].hotkeyBtn->setConflict(conflict);
     }
+}
+
+bool LibrarySettingsPage::hotkeyInUse(int skipIdx, const QString &hk) const {
+    if (hk.isEmpty()) return false;
+    for (int j = 0; j < m_libs.size(); ++j) {
+        if (j == skipIdx || !m_libs[j].hotkeyBtn || !m_libs[j].enabledCheck ||
+            !m_libs[j].enabledCheck->isChecked())
+            continue;
+        if (ShortcutCompare::compareShortcutKeys(hk, m_libs[j].hotkeyBtn->hotkey()))
+            return true;
+    }
+    return false;
 }
 
 bool LibrarySettingsPage::collectToConfig() {

@@ -1,5 +1,6 @@
 #include "generalsettingspage.h"
 #include "configmanager.h"
+#include "settingswidgets.h"
 
 #include <QSpinBox>
 #include <QCheckBox>
@@ -14,13 +15,6 @@
 #include <QStyle>
 #include <QMessageBox>
 #include <QSize>
-
-static QSpinBox *makeSpinBox(int min, int max, int val, QWidget *parent) {
-    auto *sb = new QSpinBox(parent);
-    sb->setRange(min, max);
-    sb->setValue(val);
-    return sb;
-}
 
 GeneralSettingsPage::GeneralSettingsPage(ConfigManager *config, QWidget *parent)
     : QWidget(parent), m_config(config)
@@ -59,18 +53,10 @@ GeneralSettingsPage::GeneralSettingsPage(ConfigManager *config, QWidget *parent)
     auto *animThumbRow = new QWidget(this);
     auto *animThumbLayout = new QHBoxLayout(animThumbRow);
     animThumbLayout->setContentsMargins(0, 0, 0, 0);
-    auto *animThumbInfoBtn = new QPushButton(animThumbRow);
-    animThumbInfoBtn->setIcon(style()->standardIcon(QStyle::SP_MessageBoxWarning));
-    animThumbInfoBtn->setIconSize(QSize(16, 16));
-    animThumbInfoBtn->setFixedSize(20, 20);
-    animThumbInfoBtn->setFlat(true);
-    animThumbInfoBtn->setCursor(Qt::PointingHandCursor);
-    connect(animThumbInfoBtn, &QPushButton::clicked, this, []() {
-        QMessageBox::information(nullptr, "Animate Thumbnails",
-            "Enabling this may cause lag or stutter when the library contains "
-            "many animated files. It is not recommended to enable it when there "
-            "are too many animated files.");
-    });
+    auto *animThumbInfoBtn = makeInfoButton("Animate Thumbnails",
+        "Enabling this may cause lag or stutter when the library contains "
+        "many animated files. It is not recommended to enable it when there "
+        "are too many animated files.", animThumbRow);
     animThumbLayout->addWidget(m_animateThumbnails);
     animThumbLayout->addWidget(animThumbInfoBtn, 0, Qt::AlignLeft);
     animThumbLayout->addStretch();
@@ -162,31 +148,33 @@ void GeneralSettingsPage::applyToConfig() {
 }
 
 void GeneralSettingsPage::resetToDefaults() {
+    // getDefaultConfig() is built from hardDefaults(), so every key exists
+    // and needs no fallback value here (single source of truth).
     QJsonObject def = m_config->getDefaultConfig()["default"].toObject();
 
     QJsonObject ui = def["ui"].toObject();
-    m_categoryButtonSize->setValue(ui["categoryButtonSize"].toInt(90));
-    m_gridCellSize->setValue(ui["gridCellSize"].toInt(120));
-    m_recentLimit->setValue(ui["recentLimit"].toInt(100));
-    m_recentEnabled->setChecked(ui["recentEnabled"].toBool(true));
+    m_categoryButtonSize->setValue(ui["categoryButtonSize"].toInt());
+    m_gridCellSize->setValue(ui["gridCellSize"].toInt());
+    m_recentLimit->setValue(ui["recentLimit"].toInt());
+    m_recentEnabled->setChecked(ui["recentEnabled"].toBool());
 
     QJsonObject bhv = def["behavior"].toObject();
-    m_copyOnDblClick->setChecked(bhv["copyOnDoubleClick"].toBool(true));
-    m_highlightOnClick->setChecked(bhv["highlightOnClick"].toBool(true));
-    m_animateThumbnails->setChecked(bhv["animateThumbnails"].toBool(false));
-    m_animatePreview->setChecked(bhv["animatePreview"].toBool(true));
-    m_showFileTypeTag->setChecked(bhv["showFileTypeTag"].toBool(true));
-    m_showStickerName->setChecked(bhv["showStickerName"].toBool(true));
-    m_showStickerSize->setChecked(bhv["showStickerSize"].toBool(true));
-    m_showCategoryName->setChecked(bhv["showCategoryName"].toBool(true));
-    m_showCategoryCount->setChecked(bhv["showCategoryCount"].toBool(true));
+    m_copyOnDblClick->setChecked(bhv["copyOnDoubleClick"].toBool());
+    m_highlightOnClick->setChecked(bhv["highlightOnClick"].toBool());
+    m_animateThumbnails->setChecked(bhv["animateThumbnails"].toBool());
+    m_animatePreview->setChecked(bhv["animatePreview"].toBool());
+    m_showFileTypeTag->setChecked(bhv["showFileTypeTag"].toBool());
+    m_showStickerName->setChecked(bhv["showStickerName"].toBool());
+    m_showStickerSize->setChecked(bhv["showStickerSize"].toBool());
+    m_showCategoryName->setChecked(bhv["showCategoryName"].toBool());
+    m_showCategoryCount->setChecked(bhv["showCategoryCount"].toBool());
 
     QJsonObject win = def["window"].toObject();
     QJsonArray pos = win["position"].toArray();
     QJsonArray size = win["size"].toArray();
-    m_winPosX->setValue(pos.size() == 2 ? pos[0].toInt() : 900);
-    m_winPosY->setValue(pos.size() == 2 ? pos[1].toInt() : 50);
-    m_winW->setValue(size.size() == 2 ? size[0].toInt() : 540);
-    m_winH->setValue(size.size() == 2 ? size[1].toInt() : 430);
-    m_alwaysOnTop->setChecked(win["alwaysOnTop"].toBool(true));
+    m_winPosX->setValue(pos[0].toInt());
+    m_winPosY->setValue(pos[1].toInt());
+    m_winW->setValue(size[0].toInt());
+    m_winH->setValue(size[1].toInt());
+    m_alwaysOnTop->setChecked(win["alwaysOnTop"].toBool());
 }

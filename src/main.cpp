@@ -18,8 +18,8 @@
 #include "convertcodetostring.hpp"
 #include "launcher.hpp"
 #include "settingsdialog.h"
-#include "updatechecker.h"
 #include "appinfo.h"
+#include "checkupdate.hpp"
 
 #ifdef CONSOLE
 #define DEBUG_MODE true
@@ -27,22 +27,16 @@
 #define DEBUG_MODE false
 #endif
 
-static void rebuildHotkeyMapping(const QMap<QString, MainWindow *> &windows, QMap<QString, MainWindow *> &hotkeyToWindow) {
-    hotkeyToWindow.clear();
-    for (auto it = windows.begin(); it != windows.end(); ++it) {
-        LibraryConfig libConfig = it.value()->getLibraryConfig();
-        if (libConfig.enabled && !libConfig.hotkey.isEmpty()) {
-            hotkeyToWindow[libConfig.hotkey] = it.value();
-        }
-    }
-}
+static void rebuildHotkeyMapping(const QMap<QString, MainWindow *> &windows, QMap<QString, MainWindow *> &hotkeyToWindow);
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     initLogFile();
-    setLogLevel(LogLevel::Debug);
-    if (!DEBUG_MODE) qInstallMessageHandler(messageHandler);
+    if (!DEBUG_MODE)
+        qInstallMessageHandler(messageHandler);
     QApplication app(argc, argv);
     app.setApplicationName("Stickers Manager");
+    app.setWindowIcon(QIcon(":/assets/st.png"));
     QString userName = QFileInfo(QStandardPaths::writableLocation(QStandardPaths::HomeLocation)).fileName();
     userName = !userName.isEmpty() ? userName : "unknown";
     QLockFile lockFile(QDir::temp().absoluteFilePath(QString("%1_%2.lock").arg(userName).arg(app.applicationName())));
@@ -53,7 +47,6 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     app.setQuitOnLastWindowClosed(false);
-    app.setWindowIcon(QIcon(":/assets/st.png"));
     QStringList styles = QStyleFactory::keys();
     if (styles.contains("Fusion", Qt::CaseInsensitive))
         app.setStyle("Fusion");
@@ -65,11 +58,14 @@ int main(int argc, char *argv[]) {
     QMap<QString, MainWindow *> hotkeyToWindow;
     QPointer<MainWindow> firstWindow;
 
-    auto createWindows = [&](const QVector<LibraryConfig> &libs) {
-        for (const auto &lib : libs) {
+    auto createWindows = [&](const QVector<LibraryConfig> &libs)
+    {
+        for (const auto &lib : libs)
+        {
             if (lib.path.isEmpty())
                 continue;
-            if (!windows.contains(lib.path)) {
+            if (!windows.contains(lib.path))
+            {
                 auto *window = new MainWindow(&config, lib);
                 windows[lib.path] = window;
                 QFileInfo dirInfo(lib.path);
@@ -83,7 +79,8 @@ int main(int argc, char *argv[]) {
             firstWindow = windows.first();
     };
 
-    auto removeStaleWindows = [&](const QVector<LibraryConfig> &libs) {
+    auto removeStaleWindows = [&](const QVector<LibraryConfig> &libs)
+    {
         QStringList active;
         for (const auto &lib : libs)
             if (!lib.path.isEmpty())
@@ -92,14 +89,16 @@ int main(int argc, char *argv[]) {
         for (auto it = windows.begin(); it != windows.end(); ++it)
             if (!active.contains(it.key()))
                 toRemove.append(it.key());
-        for (const auto &path : toRemove) {
+        for (const auto &path : toRemove)
+        {
             delete windows[path];
             windows.remove(path);
         }
     };
 
     GlobalInputListener *listener = new GlobalInputListener();
-    QObject::connect(listener, &GlobalInputListener::keyReleased, [&](int keyCode, ModifierKeys modifiers) {
+    QObject::connect(listener, &GlobalInputListener::keyReleased, [&](int keyCode, ModifierKeys modifiers)
+                     {
         QString keyName = keyCodeToKeyString(keyCode);
         QString modifiersName = modifiersToString(modifiers);
         QString hotkey = modifiersName + "+" + keyName;
@@ -114,24 +113,29 @@ int main(int argc, char *argv[]) {
                     window->hide();
                 break;
             }
-        }
-    });
+        } });
 
-    auto syncHotkeyListener = [&]() {
-        if (hotkeyToWindow.isEmpty()) {
+    auto syncHotkeyListener = [&]()
+    {
+        if (hotkeyToWindow.isEmpty())
+        {
             listener->stopListening();
             return;
         }
         if (listener->isListening())
             return;
-        if (listener->startListening()) {
+        if (listener->startListening())
+        {
             qDebug() << "Global input listener is running with" << hotkeyToWindow.size() << "hotkeys";
-        } else {
+        }
+        else
+        {
             qCritical() << "Failed to start global input listening";
         }
     };
 
-    auto fullReload = [&]() {
+    auto fullReload = [&]()
+    {
         config.loadSettings();
         auto libs = config.getLibraries();
         removeStaleWindows(libs);
@@ -143,16 +147,20 @@ int main(int argc, char *argv[]) {
         syncHotkeyListener();
     };
 
-    auto applyChanges = [&]() {
+    auto applyChanges = [&]()
+    {
         config.loadSettings();
         auto libs = config.getLibraries();
         removeStaleWindows(libs);
         createWindows(libs);
 
         // refresh per-window library config (hotkey, overrides, ...)
-        for (auto it = windows.begin(); it != windows.end(); ++it) {
-            for (const auto &lib : libs) {
-                if (lib.path == it.key()) {
+        for (auto it = windows.begin(); it != windows.end(); ++it)
+        {
+            for (const auto &lib : libs)
+            {
+                if (lib.path == it.key())
+                {
                     it.value()->updateLibraryConfig(lib);
                     break;
                 }
@@ -172,16 +180,20 @@ int main(int argc, char *argv[]) {
                 it.value()->showWindow();
     };
 
-    auto showSettings = [&](bool toggle = false) {
-        if (toggle && settingsDlg && settingsDlg->isVisible()) {
+    auto showSettings = [&](bool toggle = false)
+    {
+        if (toggle && settingsDlg && settingsDlg->isVisible())
+        {
             settingsDlg->close();
             return;
         }
-        if (!settingsDlg) {
+        if (!settingsDlg)
+        {
             auto *dlg = new SettingsDialog(&config, true);
             dlg->setAttribute(Qt::WA_DeleteOnClose);
             QObject::connect(dlg, &SettingsDialog::applied, applyChanges);
-            QObject::connect(dlg, &QDialog::finished, [&]() { settingsDlg = nullptr; });
+            QObject::connect(dlg, &QDialog::finished, [&]()
+                             { settingsDlg = nullptr; });
             settingsDlg = dlg;
         }
         settingsDlg->show();
@@ -193,14 +205,17 @@ int main(int argc, char *argv[]) {
     auto libs = config.getLibraries();
     bool hasLib = false;
     for (const auto &lib : libs)
-        if (!lib.path.isEmpty() && QDir(lib.path).exists()) {
+        if (!lib.path.isEmpty() && QDir(lib.path).exists())
+        {
             hasLib = true;
             break;
         }
 
-    if (!hasLib) {
+    if (!hasLib)
+    {
         SettingsDialog tmpDlg(&config, false, nullptr);
-        if (tmpDlg.exec() == QDialog::Accepted) {
+        if (tmpDlg.exec() == QDialog::Accepted)
+        {
             config.loadSettings();
             libs = config.getLibraries();
         }
@@ -211,7 +226,8 @@ int main(int argc, char *argv[]) {
 
     TrayIcon::instance()->updateShowMenu(libs);
 
-    QObject::connect(TrayIcon::instance()->showSubMenu, &QMenu::triggered, [&](QAction *action) {
+    QObject::connect(TrayIcon::instance()->showSubMenu, &QMenu::triggered, [&](QAction *action)
+                     {
         QString libraryPath = action->data().toString();
         if (windows.contains(libraryPath)) {
             MainWindow *window = windows[libraryPath];
@@ -219,43 +235,57 @@ int main(int argc, char *argv[]) {
                 window->showWindow();
             else
                 window->hide();
-        }
-    });
+        } });
 
     QObject::connect(
         TrayIcon::instance(), &TrayIcon::activated,
-        [&](QSystemTrayIcon::ActivationReason reason) {
-            if (reason != QSystemTrayIcon::DoubleClick) return;
+        [&](QSystemTrayIcon::ActivationReason reason)
+        {
+            if (reason != QSystemTrayIcon::DoubleClick)
+                return;
 
             QString target = config.getDoubleClickTarget();
-            if (target == "settings") {
+            if (target == "settings")
+            {
                 showSettings(true);
                 return;
             }
 
             MainWindow *win = nullptr;
-            if (target == "first-library" || target.isEmpty()) {
+            if (target == "first-library" || target.isEmpty())
+            {
                 // first library in id (config) order
-                for (const auto &lib : config.getLibraries()) {
-                    if (windows.contains(lib.path)) {
+                for (const auto &lib : config.getLibraries())
+                {
+                    if (windows.contains(lib.path))
+                    {
                         win = windows[lib.path];
                         break;
                     }
                 }
-            } else {
+            }
+            else
+            {
                 bool isId = false;
                 int targetId = target.toInt(&isId);
-                if (isId) {
-                    for (auto it = windows.cbegin(); it != windows.cend(); ++it) {
-                        if (it.value()->getLibraryConfig().id == targetId) {
+                if (isId)
+                {
+                    for (auto it = windows.cbegin(); it != windows.cend(); ++it)
+                    {
+                        if (it.value()->getLibraryConfig().id == targetId)
+                        {
                             win = it.value();
                             break;
                         }
                     }
-                } else {
+                }
+                else
+                {
                     // legacy config: target stored as directory name
-                    for (auto it = windows.cbegin(); it != windows.cend(); ++it) {
-                        if (QFileInfo(it.key()).fileName() == target) {
+                    for (auto it = windows.cbegin(); it != windows.cend(); ++it)
+                    {
+                        if (QFileInfo(it.key()).fileName() == target)
+                        {
                             win = it.value();
                             break;
                         }
@@ -263,7 +293,8 @@ int main(int argc, char *argv[]) {
                 }
             }
 
-            if (win) {
+            if (win)
+            {
                 if (win->isHidden())
                     win->showWindow();
                 else
@@ -273,23 +304,24 @@ int main(int argc, char *argv[]) {
 
     QObject::connect(TrayIcon::instance()->action_rescan, &QAction::triggered, fullReload);
 
-    QObject::connect(TrayIcon::instance()->action_settings, &QAction::triggered, [&]() {
-        showSettings(false);
-    });
+    QObject::connect(TrayIcon::instance()->action_settings, &QAction::triggered, [&]()
+                     { showSettings(false); });
 
     TrayIcon::instance()->show();
 
-    if (config.getCheckForUpdatesOnStartup()) {
-        auto *checker = new UpdateChecker();
-        QObject::connect(checker, &UpdateChecker::finished, [checker](bool success, const QString &latestVersion, const QString &) {
-            if (success && UpdateChecker::compareVersions(latestVersion, AppInfo::version()) > 0) {
-                TrayIcon::showMessage("Update Available",
-                                      "Stickers Manager " + latestVersion + " is now available.");
-            }
-            checker->deleteLater();
-        });
-        checker->check();
-    }
+    checkupdate(config.getCheckForUpdatesOnStartup());
 
     return app.exec();
+}
+static void rebuildHotkeyMapping(const QMap<QString, MainWindow *> &windows, QMap<QString, MainWindow *> &hotkeyToWindow)
+{
+    hotkeyToWindow.clear();
+    for (auto it = windows.begin(); it != windows.end(); ++it)
+    {
+        LibraryConfig libConfig = it.value()->getLibraryConfig();
+        if (libConfig.enabled && !libConfig.hotkey.isEmpty())
+        {
+            hotkeyToWindow[libConfig.hotkey] = it.value();
+        }
+    }
 }

@@ -108,7 +108,8 @@ public:
 
 private:
     QJsonObject defaultBlock() const { return m_config["default"].toObject(); }
-    static QJsonObject libCatSettings(const LibraryConfig &lib, const QString &category);
+    QJsonValue defVal(const QString &cat, const QString &key) const;
+    QJsonValue effVal(const LibraryConfig &lib, const QString &cat, const QString &key) const;
 
     QJsonObject m_config;
     QString m_configPath;

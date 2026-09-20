@@ -6,6 +6,7 @@
 #include <QFontMetrics>
 #include <QResizeEvent>
 #include <QStyle>
+#include "labeltagst.hpp"
 
 CategoryButton::CategoryButton(const QString &categoryName,
                                int buttonSize,
@@ -44,27 +45,11 @@ CategoryButton::CategoryButton(const QString &categoryName,
 
     // 名称标签（左下角覆盖）
     m_nameLabel = new QLabel(m_categoryName, this);
-    m_nameLabel->setStyleSheet(
-        "QLabel {"
-        "  background-color: rgba(0, 0, 0, 150);"
-        "  color: #ffffff;"
-        "  padding: 1px 5px;"
-        "  font-size: 10px;"
-        "  border-radius: 3px;"
-        "}"
-    );
+    m_nameLabel->setStyleSheet(kOverlayLabelStyle);
 
     // 数量标签（右下角覆盖）
     m_countLabel = new QLabel(this);
-    m_countLabel->setStyleSheet(
-        "QLabel {"
-        "  background-color: rgba(0, 0, 0, 150);"
-        "  color: #ffffff;"
-        "  padding: 1px 5px;"
-        "  font-size: 10px;"
-        "  border-radius: 3px;"
-        "}"
-    );
+    m_countLabel->setStyleSheet(kOverlayLabelStyle);
 
     updateOverlayLabels();
 }
@@ -141,7 +126,7 @@ void CategoryButton::updateIcon()
         iconSize = 10;
 
     if (m_showClock) {
-        // Recent 类目：预览图为自绘时钟（按当前 iconSize 绘制）
+        // Recent 类目：预览图
         setIcon(QIcon(makeClockIcon(palette().color(QPalette::Text), iconSize)));
         setIconSize(QSize(iconSize, iconSize));
         return;

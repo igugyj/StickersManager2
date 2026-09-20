@@ -22,6 +22,7 @@ public:
     void setThumbnail(const QPixmap &pixmap);
 
     void clearHighlight();
+    void setHighlighted(bool on);
 
     // 设置占位图（只在构造函数中调用一次）
     void setPlaceholder();

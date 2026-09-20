@@ -3,6 +3,6 @@
         <file>assets/st.png</file>
         <file>assets/menu.qss</file>
         <file>assets/st.ico</file>
-        <file>assets/Clock - 24x24.png</file>
+        <file>assets/clock.png</file>
     </qresource>
 </RCC>

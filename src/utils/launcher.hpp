@@ -1,12 +1,3 @@
-/*
-* PLauncher - Live2D Virtual Desktop Partner
- * https://gitee.com/Pfolg/plauncher
- * https://sourceforge.net/projects/pfolg-plauncher/
- * Copyright (c) 2025 SY Cheng
- *
- * GPL v3 License
- * https://gnu.ac.cn/licenses/gpl-3.0.html
- */
 #pragma once
 
 #include <QProcess>
@@ -20,16 +11,17 @@
 #include <QMetaObject>
 #include "tray.h"
 
-
-static void notifyTray(const QString &title, const QString &msg, QSystemTrayIcon::MessageIcon icon) {
-    QMetaObject::invokeMethod(QCoreApplication::instance(), [title, msg, icon]() {
-        TrayIcon::showMessage(title, msg, icon, 5000);
-    }, Qt::QueuedConnection);
+static void notifyTray(const QString &title, const QString &msg, QSystemTrayIcon::MessageIcon icon)
+{
+    QMetaObject::invokeMethod(QCoreApplication::instance(), [title, msg, icon]()
+                              { TrayIcon::showMessage(title, msg, icon, 5000); }, Qt::QueuedConnection);
 }
 
-static QFuture<void> launchByPathAsync(const QString &path) {
+static QFuture<void> launch(const QString &path)
+{
     qDebug() << "launching: " << path;
-    return QtConcurrent::run([path]() -> bool {
+    return QtConcurrent::run([path]() -> bool
+                             {
         try {
             bool success = false;
 
@@ -75,11 +67,5 @@ static QFuture<void> launchByPathAsync(const QString &path) {
                        QObject::tr("Unknown exception occurred while launching: %1").arg(path),
                        QSystemTrayIcon::Critical);
             return false;
-        }
-    });
-}
-
-// 同步版本
-static void launch(const QString &path) {
-    launchByPathAsync(path);
+        } });
 }

@@ -19,7 +19,6 @@ public:
     QPixmap get(const QString &key);
 
     void loadThumbnailAsync(const QString &imagePath, const QSize &targetSize);
-    void loadThumbnailsAsync(const QVector<QPair<QString, QSize> > &thumbnails);
 
     void cancelAllLoads();
     void clear();

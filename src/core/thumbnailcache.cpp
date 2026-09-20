@@ -20,20 +20,16 @@ ThumbnailCache::~ThumbnailCache() {
 
 QPixmap ThumbnailCache::get(const QString &key) {
     QMutexLocker locker(&m_cacheMutex);
-    if (m_cache.contains(key)) {
-        return *m_cache.object(key);
-    }
-    return QPixmap();
+    const QPixmap *p = m_cache.object(key);
+    return p ? *p : QPixmap();
 }
 
 void ThumbnailCache::loadThumbnailAsync(const QString &imagePath, const QSize &targetSize) {
     QPixmap cached;
     {
         QMutexLocker locker(&m_cacheMutex);
-        if (m_cache.contains(imagePath))
-        {
-            cached = *m_cache.object(imagePath);
-        }
+        if (const QPixmap *p = m_cache.object(imagePath))
+            cached = *p;
     }
 
     if (!cached.isNull()) {
@@ -42,10 +38,6 @@ void ThumbnailCache::loadThumbnailAsync(const QString &imagePath, const QSize &t
     }
 
     m_asyncLoader->loadThumbnail(imagePath, targetSize);
-}
-
-void ThumbnailCache::loadThumbnailsAsync(const QVector<QPair<QString, QSize> > &thumbnails) {
-    m_asyncLoader->loadThumbnails(thumbnails);
 }
 
 void ThumbnailCache::cancelAllLoads() {
@@ -58,13 +50,10 @@ void ThumbnailCache::clear() {
 }
 
 void ThumbnailCache::onAsyncThumbnailLoaded(const QString &filePath, const QPixmap &pixmap) {
+    // Every load failure already surfaces as a "Load Failed" placeholder from the
+    // async loader, so pixmap is never null here; the guard is defensive only.
     if (pixmap.isNull()) {
-        QPixmap errorPixmap(100, 100);
-        errorPixmap.fill(QColor(255, 230, 230));
-        QPainter painter(&errorPixmap);
-        painter.setPen(QColor(255, 100, 100));
-        painter.drawText(errorPixmap.rect(), Qt::AlignCenter, "Error");
-        emit thumbnailReady(filePath, errorPixmap);
+        emit thumbnailReady(filePath, pixmap);
         return;
     }
 

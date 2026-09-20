@@ -30,6 +30,10 @@
 QSet<QString> ImageLoader::s_animatedCache;
 QSet<QString> ImageLoader::s_staticCache;
 
+namespace {
+constexpr int kCacheLimit = 4096;
+}
+
 QImage ImageLoader::loadImage(const QString &filePath) {
     QFileInfo fileInfo(filePath);
     if (!fileInfo.exists()) {
@@ -113,6 +117,11 @@ bool ImageLoader::isFormatSupported(const QString &filePath) {
 bool ImageLoader::isAnimated(const QString &filePath) {
     if (s_animatedCache.contains(filePath)) return true;
     if (s_staticCache.contains(filePath)) return false;
+
+    // Bound the caches: the process runs for days (tray app) and every browsed
+    // path-string would otherwise accumulate forever.
+    if (s_animatedCache.size() > kCacheLimit) s_animatedCache.clear();
+    if (s_staticCache.size() > kCacheLimit) s_staticCache.clear();
 
     Format format = detectFormat(filePath);
     if (format == Format::GIF) {

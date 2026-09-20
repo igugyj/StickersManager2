@@ -32,35 +32,28 @@ bool StickerLibrary::scanLibrary() {
         return false;
     }
 
-    QStringList categoryDirs = libraryDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    // Collect files in walk order, grouped by category (order preserved).
+    QVector<QString> categoryOrder;
+    QMap<QString, QVector<QString>> stickerLists;
+    forEachStickerFile(m_libraryPath, [&](const QString &categoryName, const QFileInfo &fi) {
+        if (!isValidImage(fi.absoluteFilePath()))
+            return;
+        if (!stickerLists.contains(categoryName))
+            categoryOrder.append(categoryName);
+        stickerLists[categoryName].append(fi.absoluteFilePath());
+    });
 
     int totalStickers = 0;
-    for (const QString &categoryName: categoryDirs) {
-        QString categoryPath = m_libraryPath + "/" + categoryName;
-        QDir categoryDir(categoryPath);
-
-        QStringList imageFiles;
-        QStringList files = categoryDir.entryList(QDir::Files);
-        for (const QString &fileName: files) {
-            if (isPreviewFile(fileName)) {
-                continue;
-            }
-
-            QString filePath = categoryPath + "/" + fileName;
-            if (isValidImage(filePath)) {
-                imageFiles.append(filePath);
-            }
+    for (const QString &categoryName : categoryOrder) {
+        QVector<QString> &imageFiles = stickerLists[categoryName];
+        std::sort(imageFiles.begin(), imageFiles.end());
+        m_categories[categoryName] = imageFiles;
+        for (const QString &path : imageFiles) {
+            m_searchIndex.insert(path, QFileInfo(path).fileName().toLower());
+            m_allStickers.append(path);
         }
-
-        if (!imageFiles.isEmpty()) {
-            std::sort(imageFiles.begin(), imageFiles.end());
-            m_categories[categoryName] = QVector<QString>::fromList(imageFiles);
-            for (const QString &path : imageFiles)
-                m_searchIndex.insert(path, QFileInfo(path).fileName().toLower());
-            m_allStickers.append(imageFiles);
-            totalStickers += imageFiles.size();
-            qDebug() << "Category" << categoryName << "loaded" << imageFiles.size() << "stickers";
-        }
+        totalStickers += imageFiles.size();
+        qDebug() << "Category" << categoryName << "loaded" << imageFiles.size() << "stickers";
     }
 
     qDebug() << "Sticker library scan complete, total" << m_categories.size() << "categories,"

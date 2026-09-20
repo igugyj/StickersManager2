@@ -20,7 +20,6 @@ public:
     ~AsyncThumbnailLoader();
 
     void loadThumbnail(const QString &filePath, const QSize &targetSize);
-    void loadThumbnails(const QVector<QPair<QString, QSize> > &thumbnails);
     void cancelAll();
 
 signals:

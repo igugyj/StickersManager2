@@ -7,7 +7,6 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QScrollBar>
-#include "appinfo.h"
 #include "tray.h"
 #include "custommenu.h"
 
@@ -15,8 +14,9 @@ static const QString kRecentCategoryName = "Recent";
 
 MainWindow::MainWindow(ConfigManager *config, const LibraryConfig &libConfig, QWidget *parent)
     : QMainWindow(parent), m_config(config), m_library(nullptr), m_thumbnailCache(nullptr),
-      m_searchTimer(new QTimer(this)), m_libConfig(libConfig) {
-    m_thumbnailCache = new ThumbnailCache(m_config->getEffectiveThumbnailCacheSize(m_libConfig), this);
+      m_searchTimer(new QTimer(this)), m_libConfig(libConfig), m_highlightManager(m_cellMap) {
+    refreshEffectiveSettings();
+    m_thumbnailCache = new ThumbnailCache(m_eff.thumbnailCacheSize, this);
     m_library = new StickerLibrary(this);
 
     connect(m_thumbnailCache, &ThumbnailCache::thumbnailReady,
@@ -24,7 +24,7 @@ MainWindow::MainWindow(ConfigManager *config, const LibraryConfig &libConfig, QW
 
     initUI();
     m_recents.load(m_libConfig.path);
-    m_recents.setLimit(m_config->getEffectiveRecentLimit(m_libConfig));
+    m_recents.setLimit(m_eff.recentLimit);
     loadLibrary();
     m_searchTimer->setSingleShot(true);
     connect(m_searchTimer, &QTimer::timeout, this, &MainWindow::delayedSearch);
@@ -41,15 +41,38 @@ LibraryConfig MainWindow::getLibraryConfig() const {
 
 void MainWindow::updateLibraryConfig(const LibraryConfig &lib) {
     m_libConfig = lib;
+    refreshEffectiveSettings();
+}
+
+void MainWindow::refreshEffectiveSettings() {
+    m_eff.windowSize = m_config->getEffectiveWindowSize(m_libConfig);
+    m_eff.windowPos = m_config->getEffectiveWindowPosition(m_libConfig);
+    m_eff.alwaysOnTop = m_config->getEffectiveAlwaysOnTop(m_libConfig);
+    m_eff.categoryButtonSize = m_config->getEffectiveCategoryButtonSize(m_libConfig);
+    m_eff.gridCellSize = m_config->getEffectiveGridCellSize(m_libConfig);
+    m_eff.gridColumns = m_config->getEffectiveGridColumns(m_libConfig);
+    m_eff.recentLimit = m_config->getEffectiveRecentLimit(m_libConfig);
+    m_eff.recentEnabled = m_config->getEffectiveRecentEnabled(m_libConfig);
+    m_eff.thumbnailCacheSize = m_config->getEffectiveThumbnailCacheSize(m_libConfig);
+    m_eff.animateThumbnails = m_config->getEffectiveAnimateThumbnails(m_libConfig);
+    m_eff.animatePreview = m_config->getEffectiveAnimatePreview(m_libConfig);
+    m_eff.showFileTypeTag = m_config->getEffectiveShowFileTypeTag(m_libConfig);
+    m_eff.showStickerName = m_config->getEffectiveShowStickerName(m_libConfig);
+    m_eff.showStickerSize = m_config->getEffectiveShowStickerSize(m_libConfig);
+    m_eff.showCategoryName = m_config->getEffectiveShowCategoryName(m_libConfig);
+    m_eff.showCategoryCount = m_config->getEffectiveShowCategoryCount(m_libConfig);
+    m_eff.highlightOnClick = m_config->getEffectiveHighlightOnClick(m_libConfig);
+    m_eff.copyOnDoubleClick = m_config->getEffectiveCopyOnDoubleClick(m_libConfig);
 }
 
 void MainWindow::applySettings() {
+    refreshEffectiveSettings();
     QString savedSearch = m_searchInput->text();
     QString savedCatSearch = m_categorySearchInput->text();
     QString savedCat = m_currentCategory;
 
-    m_thumbnailCache->setMaxSize(m_config->getEffectiveThumbnailCacheSize(m_libConfig));
-    m_recents.setLimit(m_config->getEffectiveRecentLimit(m_libConfig));
+    m_thumbnailCache->setMaxSize(m_eff.thumbnailCacheSize);
+    m_recents.setLimit(m_eff.recentLimit);
 
     populateCategories();
     recalculateGridColumns();
@@ -68,12 +91,11 @@ void MainWindow::applySettings() {
 }
 
 void MainWindow::initUI() {
-    setWindowTitle(AppInfo::name() + " " + AppInfo::version());
-    QSize windowSize = m_config->getEffectiveWindowSize(m_libConfig);
-    QPoint windowPos = m_config->getEffectiveWindowPosition(m_libConfig);
+    QSize windowSize = m_eff.windowSize;
+    QPoint windowPos = m_eff.windowPos;
     setGeometry(windowPos.x(), windowPos.y(), windowSize.width(), windowSize.height());
     Qt::WindowFlags flags = Qt::Window;
-    if (m_config->getEffectiveAlwaysOnTop(m_libConfig))
+    if (m_eff.alwaysOnTop)
         flags |= Qt::WindowStaysOnTopHint;
     setWindowFlags(flags);
 
@@ -96,7 +118,7 @@ QWidget *MainWindow::createCategoryPanel() {
     QWidget *panel = new QWidget();
     QVBoxLayout *layout = new QVBoxLayout(panel);
     layout->setContentsMargins(0, 0, 0, 0);
-    int buttonSize = m_config->getEffectiveCategoryButtonSize(m_libConfig);
+    int buttonSize = m_eff.categoryButtonSize;
     m_categoryPanel = panel;
     panel->setMaximumWidth(buttonSize + 20);
     panel->setMinimumWidth(buttonSize + 20);
@@ -155,7 +177,7 @@ void MainWindow::loadLibrary() {
         m_config->addLibrary(m_libConfig);
         m_config->saveConfig();
         m_recents.load(m_libConfig.path);
-        m_recents.setLimit(m_config->getEffectiveRecentLimit(m_libConfig));
+        m_recents.setLimit(m_eff.recentLimit);
     }
     if (m_library->setLibraryPath(libraryPath)) {
         populateCategories();
@@ -173,7 +195,7 @@ void MainWindow::populateCategories()
     m_pendingCategoryButtons.clear();
 
     QMap<QString, QVector<QString> > categories = m_library->getCategories();
-    int buttonSize = m_config->getEffectiveCategoryButtonSize(m_libConfig);
+    int buttonSize = m_eff.categoryButtonSize;
     if (m_categoryPanel) {
         m_categoryPanel->setMaximumWidth(buttonSize + 20);
         m_categoryPanel->setMinimumWidth(buttonSize + 20);
@@ -182,8 +204,8 @@ void MainWindow::populateCategories()
     auto addCategoryButton = [&](const QString &categoryName, const QString &firstSticker, int count, bool showClock = false) {
         CategoryButton *button = new CategoryButton(categoryName, buttonSize);
         button->setStickerCount(count);
-        button->setShowName(m_config->getEffectiveShowCategoryName(m_libConfig));
-        button->setShowCount(m_config->getEffectiveShowCategoryCount(m_libConfig));
+        button->setShowName(m_eff.showCategoryName);
+        button->setShowCount(m_eff.showCategoryCount);
         button->setShowClock(showClock);
 
         connect(button, &CategoryButton::clicked, this, &MainWindow::onCategoryClicked);
@@ -206,7 +228,7 @@ void MainWindow::populateCategories()
     // Recent pseudo-category first — hidden entirely when there are no usage records
     // or when the Recent feature is disabled (default or per-library override)
     QVector<QString> recentPaths = m_recents.paths();
-    if (m_config->getEffectiveRecentEnabled(m_libConfig) && !recentPaths.isEmpty()) {
+    if (m_eff.recentEnabled && !recentPaths.isEmpty()) {
         addCategoryButton(kRecentCategoryName, QString(), recentPaths.size(), true);
     }
 
@@ -217,14 +239,14 @@ void MainWindow::populateCategories()
     }
     m_categoryLayout->addStretch();
 
-    if (m_config->getEffectiveRecentEnabled(m_libConfig) && !recentPaths.isEmpty())
+    if (m_eff.recentEnabled && !recentPaths.isEmpty())
         showCategory(kRecentCategoryName);
     else if (!categories.isEmpty())
         showCategory(categories.keys().first());
 }
 
 void MainWindow::showCategory(const QString &categoryName) {
-    if (categoryName == kRecentCategoryName && !m_config->getEffectiveRecentEnabled(m_libConfig))
+    if (categoryName == kRecentCategoryName && !m_eff.recentEnabled)
         return;
     m_currentCategory = categoryName;
     m_searchInput->clear();
@@ -254,14 +276,14 @@ void MainWindow::clearStickerCells() {
 }
 
 void MainWindow::relayoutGrid() {
-    int cellSize = m_config->getEffectiveGridCellSize(m_libConfig);
+    int cellSize = m_eff.gridCellSize;
     int step = cellSize + m_gridSpacing;
     int scrollWidth = m_stickerScroll->viewport()->width();
 
     int cols = scrollWidth / step;
     if (cols < 1)
         cols = 1;
-    cols = qMax(m_config->getEffectiveGridColumns(m_libConfig), cols);
+    cols = qMax(m_eff.gridColumns, cols);
     m_gridColumns = cols;
 
     int count = m_currentStickers.size();
@@ -285,7 +307,7 @@ void MainWindow::updateVisibleCells() {
     if (!m_stickerScroll || m_currentStickers.isEmpty())
         return;
 
-    int cellSize = m_config->getEffectiveGridCellSize(m_libConfig);
+    int cellSize = m_eff.gridCellSize;
     int step = cellSize + m_gridSpacing;
     int cols = m_gridColumns;
 
@@ -307,12 +329,12 @@ void MainWindow::updateVisibleCells() {
             continue;
 
         StickerCell *cell = new StickerCell(path, cellSize, m_stickerContainer);
-        cell->setAnimateEnabled(m_config->getEffectiveAnimateThumbnails(m_libConfig));
-        cell->setShowTag(m_config->getEffectiveShowFileTypeTag(m_libConfig));
-        cell->setShowFileName(m_config->getEffectiveShowStickerName(m_libConfig));
-        cell->setShowFileSize(m_config->getEffectiveShowStickerSize(m_libConfig));
-        cell->setHighlightEnabled(m_config->getEffectiveHighlightOnClick(m_libConfig));
-        cell->setCopyOnDoubleClick(m_config->getEffectiveCopyOnDoubleClick(m_libConfig));
+        cell->setAnimateEnabled(m_eff.animateThumbnails);
+        cell->setShowTag(m_eff.showFileTypeTag);
+        cell->setShowFileName(m_eff.showStickerName);
+        cell->setShowFileSize(m_eff.showStickerSize);
+        cell->setHighlightEnabled(m_eff.highlightOnClick);
+        cell->setCopyOnDoubleClick(m_eff.copyOnDoubleClick);
         connect(cell, &StickerCell::clicked, this, &MainWindow::onStickerClicked);
         connect(cell, &StickerCell::doubleClicked, this, &MainWindow::onStickerDoubleClicked);
         connect(cell, &StickerCell::rightClicked, this, &MainWindow::onStickerRightClicked);
@@ -345,6 +367,7 @@ void MainWindow::updateVisibleCells() {
             ++it;
         }
     }
+    m_highlightManager.refresh();
 }
 
 void MainWindow::onThumbnailLoaded(const QString &filePath, const QPixmap &pixmap)
@@ -374,13 +397,12 @@ void MainWindow::handleThumbnailLoaded(const QString &filePath, const QPixmap &p
 }
 
 void MainWindow::applyWindowSettings() {
-    setWindowFlag(Qt::WindowStaysOnTopHint,
-                  m_config->getEffectiveAlwaysOnTop(m_libConfig));
+    setWindowFlag(Qt::WindowStaysOnTopHint, m_eff.alwaysOnTop);
     setGeometry(
-        m_config->getEffectiveWindowPosition(m_libConfig).x(),
-        m_config->getEffectiveWindowPosition(m_libConfig).y(),
-        m_config->getEffectiveWindowSize(m_libConfig).width(),
-        m_config->getEffectiveWindowSize(m_libConfig).height()
+        m_eff.windowPos.x(),
+        m_eff.windowPos.y(),
+        m_eff.windowSize.width(),
+        m_eff.windowSize.height()
     );
 }
 
@@ -404,7 +426,7 @@ void MainWindow::reloadLibrary() {
     qDebug() << "Reloading library...";
     if (m_library) {
         m_recents.load(m_libConfig.path);
-        m_recents.setLimit(m_config->getEffectiveRecentLimit(m_libConfig));
+        m_recents.setLimit(m_eff.recentLimit);
         if (m_library->scanLibrary()) {
             populateCategories();
             recalculateGridColumns();
@@ -466,33 +488,49 @@ void MainWindow::onCategoryContextMenuRequested(const QPoint &pos) {
 }
 
 void MainWindow::onStickerClicked(const QString &filePath) {
-    for (StickerCell *cell: m_currentCells) {
-        if (cell->getFilePath() != filePath) {
-            cell->clearHighlight();
-        }
-    }
+    m_highlightManager.setHighlightedPath(m_eff.highlightOnClick ? filePath : QString());
 }
 
-void MainWindow::onStickerRightClicked(const QString &filePath)
-{
-    for (StickerCell *cell: m_currentCells) {
-        if (cell->getFilePath() != filePath) {
-            cell->clearHighlight();
-        }
-    }
-
+void MainWindow::onStickerRightClicked(const QString &filePath) {
+    m_highlightManager.setHighlightedPath(m_eff.highlightOnClick ? filePath : QString());
     if (m_previewDlg) {
         m_previewDlg->accept();
         m_previewDlg = nullptr;
     } else {
-        m_previewDlg = new ImagePreviewDialog(filePath, m_config->getEffectiveAnimatePreview(m_libConfig), this);
-        connect(m_previewDlg, &ImagePreviewDialog::finished, this, [this]() { m_previewDlg = nullptr; });
+        QString category = QFileInfo(filePath).dir().dirName();
+        QVector<QString> siblings = m_library->getCategories().value(category);
+        m_previewDlg = new ImagePreviewDialog(filePath, m_eff.animatePreview, siblings, this);
+        connect(m_previewDlg, &ImagePreviewDialog::finished,
+                this, &MainWindow::onPreviewClosed);
+        connect(m_previewDlg, &ImagePreviewDialog::currentFileChanged,
+                this, &MainWindow::onPreviewFileChanged);
         m_previewDlg->show();
     }
 }
 
+void MainWindow::onPreviewFileChanged(const QString &filePath) {
+    qDebug() << "[PREVIEW] onPreviewFileChanged:" << filePath << "highlightOnClick:" << m_eff.highlightOnClick;
+    int idx = m_currentStickers.indexOf(filePath);
+    if (idx >= 0) {
+        int cols = m_gridColumns;
+        int cellSize = m_eff.gridCellSize;
+        int step = cellSize + m_gridSpacing;
+        int row = idx / cols;
+        int targetY = 5 + row * step;
+        qDebug() << "[PREVIEW] scroll to row" << row << "targetY" << targetY;
+        m_stickerScroll->verticalScrollBar()->setValue(targetY);
+        updateVisibleCells();
+    }
+    m_highlightManager.setHighlightedPath(m_eff.highlightOnClick ? filePath : QString());
+}
+
+void MainWindow::onPreviewClosed() {
+    m_previewDlg = nullptr;
+    m_highlightManager.clearHighlight();
+}
+
 void MainWindow::onStickerDoubleClicked(const QString &filePath) {
-    if (m_config->getEffectiveRecentEnabled(m_libConfig)) {
+    if (m_eff.recentEnabled) {
         m_recents.recordUse(filePath);
         if (!refreshRecentButton()) {
             // 首次使用：Recent 按钮还不存在，重建类目面板（会创建 Recent 并切为当前视图）
@@ -543,14 +581,14 @@ void MainWindow::recalculateGridColumns() {
     if (!m_stickerScroll || !m_stickerContainer)
         return;
 
-    int cellSize = m_config->getEffectiveGridCellSize(m_libConfig);
+    int cellSize = m_eff.gridCellSize;
     int step = cellSize + m_gridSpacing;
     int scrollWidth = m_stickerScroll->viewport()->width();
 
     int calculatedColumns = scrollWidth / step;
     if (calculatedColumns < 1)
         calculatedColumns = 1;
-    int newColumns = qMax(m_config->getEffectiveGridColumns(m_libConfig), calculatedColumns);
+    int newColumns = qMax(m_eff.gridColumns, calculatedColumns);
 
     if (newColumns != m_gridColumns) {
         m_gridColumns = newColumns;

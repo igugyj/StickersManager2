@@ -1,4 +1,25 @@
-# Changelog — v2.6.0 → v2.7.0
+# Changelog — v2.7.0 → v2.8.0 (2026-09-20)
+
+### Added
+
+- `HighlightManager` (path-driven highlight, replaces raw `StickerCell*` pointer)
+
+### Changed
+
+- ConfigManager boilerplate deduplicated; all defaults single-sourced in `hardDefaults()`
+- Settings UI helpers consolidated into `src/ui/settingswidgets.h`
+- Library scanning shares one walker `fsutil::forEachStickerFile`
+- Thumbnail load failures show "Load Failed" placeholder instead of stuck loading
+- MainWindow caches effective settings in `EffectiveSettings`
+- Dead code removed; image-format/animation caches capped at 4096
+- Highlight unified: left/right-click and preview nav all route through `HighlightManager`
+- `StickerCell::mousePressEvent` only emits signals; MainWindow owns highlight state
+- `StickerCell::setHighlighted` uses `QApplication::palette()` for consistent color
+- Preview dialog simplified to two-zone layout
+- Preview hover uses `QApplication` eventFilter; `onPreviewFileChanged` scrolls by index
+- Recent picture refactor to my drawing, which looks suitable
+
+# Changelog — v2.6.0 → v2.7.0 (2026.08.14)
 
 ### Added
 

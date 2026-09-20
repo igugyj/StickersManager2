@@ -6,6 +6,65 @@
 #include <QSaveFile>
 #include <algorithm>
 
+// Single source of truth for every default setting value.
+static QJsonObject hardDefaults() {
+    QJsonObject def;
+
+    QJsonObject window;
+    window["position"] = QJsonArray{900, 50};
+    window["size"] = QJsonArray{540, 430};
+    window["alwaysOnTop"] = true;
+    def["window"] = window;
+
+    QJsonObject ui;
+    ui["categoryButtonSize"] = 90;
+    ui["gridCellSize"] = 120;
+    ui["gridColumns"] = 3;
+    ui["recentLimit"] = 100;
+    ui["recentEnabled"] = true;
+    def["ui"] = ui;
+
+    QJsonObject behavior;
+    behavior["copyOnDoubleClick"] = true;
+    behavior["highlightOnClick"] = true;
+    behavior["animateThumbnails"] = false;
+    behavior["animatePreview"] = true;
+    behavior["showFileTypeTag"] = true;
+    behavior["showStickerName"] = true;
+    behavior["showStickerSize"] = true;
+    behavior["showCategoryName"] = true;
+    behavior["showCategoryCount"] = true;
+    def["behavior"] = behavior;
+
+    def["performance"] = QJsonObject();
+    return def;
+}
+
+// Recursively fill missing or type-corrupted keys of `block` from the hard
+// defaults. User values with the correct type are kept.
+static void mergeDefaults(QJsonObject &block, const QJsonObject &hard) {
+    for (auto it = hard.begin(); it != hard.end(); ++it) {
+        const QJsonValue cur = block.value(it.key());
+        if (cur.isObject() && it.value().isObject()) {
+            QJsonObject sub = cur.toObject();
+            mergeDefaults(sub, it.value().toObject());
+            block[it.key()] = sub;
+        } else if (cur.isUndefined() || cur.type() != it.value().type()) {
+            block[it.key()] = it.value();
+        }
+    }
+}
+
+static QJsonObject defaultSettings() {
+    QJsonObject s;
+    s["doubleClickTarget"] = QString("settings");
+    s["searchDelayMs"] = 300;
+    s["thumbnailCacheSize"] = 200;
+    s["checkForUpdatesOnStartup"] = true;
+    s["startWithWindows"] = false;
+    return s;
+}
+
 ConfigManager::ConfigManager(QObject *parent)
     : QObject(parent) {
     QString exeDir = QCoreApplication::applicationDirPath();
@@ -41,6 +100,9 @@ bool ConfigManager::loadConfig() {
     }
 
     m_config = doc.object();
+    QJsonObject def = m_config["default"].toObject();
+    mergeDefaults(def, hardDefaults());
+    m_config["default"] = def;
     return true;
 }
 
@@ -69,12 +131,7 @@ QJsonObject ConfigManager::config() const {
 bool ConfigManager::loadSettings() {
     QFile file(m_settingsPath);
     if (!file.open(QIODevice::ReadOnly)) {
-        m_settings = QJsonObject();
-        m_settings["doubleClickTarget"] = QString("settings");
-        m_settings["searchDelayMs"] = 300;
-        m_settings["thumbnailCacheSize"] = 200;
-        m_settings["checkForUpdatesOnStartup"] = true;
-        m_settings["startWithWindows"] = false;
+        m_settings = defaultSettings();
         return false;
     }
 
@@ -83,10 +140,7 @@ bool ConfigManager::loadSettings() {
 
     QJsonDocument doc = QJsonDocument::fromJson(data);
     if (doc.isNull()) {
-        m_settings = QJsonObject();
-        m_settings["doubleClickTarget"] = QString("settings");
-        m_settings["checkForUpdatesOnStartup"] = true;
-        m_settings["startWithWindows"] = false;
+        m_settings = defaultSettings();
         return false;
     }
 
@@ -130,8 +184,13 @@ void ConfigManager::setStartWithWindows(bool v) {
     m_settings["startWithWindows"] = v;
 }
 
-QJsonObject ConfigManager::libCatSettings(const LibraryConfig &lib, const QString &category) {
-    return lib.settings[category].toObject();
+QJsonValue ConfigManager::defVal(const QString &cat, const QString &key) const {
+    return defaultBlock()[cat].toObject()[key];
+}
+
+QJsonValue ConfigManager::effVal(const LibraryConfig &lib, const QString &cat, const QString &key) const {
+    QJsonObject o = lib.settings[cat].toObject();
+    return o.contains(key) ? o[key] : defVal(cat, key);
 }
 
 QVector<LibraryConfig> ConfigManager::getLibraries() const {
@@ -184,81 +243,39 @@ void ConfigManager::addLibrary(const LibraryConfig &lib) {
 
 QJsonObject ConfigManager::getDefaultConfig() {
     QJsonObject config;
-
-    QJsonArray libraries;
-    config["libraries"] = libraries;
-
-    QJsonObject def;
-
-    QJsonObject window;
-    QJsonArray windowPos = {900, 50};
-    QJsonArray windowSize = {540, 430};
-    window["position"] = windowPos;
-    window["size"] = windowSize;
-    window["alwaysOnTop"] = true;
-    def["window"] = window;
-
-    QJsonObject ui;
-    ui["categoryButtonSize"] = 90;
-    ui["gridCellSize"] = 120;
-    ui["gridColumns"] = 3;
-    ui["recentLimit"] = 100;
-    ui["recentEnabled"] = true;
-    def["ui"] = ui;
-
-    QJsonObject behavior;
-    behavior["copyOnDoubleClick"] = true;
-    behavior["highlightOnClick"] = true;
-    behavior["animateThumbnails"] = false;
-    behavior["animatePreview"] = true;
-    behavior["showFileTypeTag"] = true;
-    behavior["showStickerName"] = true;
-    behavior["showStickerSize"] = true;
-    behavior["showCategoryName"] = true;
-    behavior["showCategoryCount"] = true;
-    def["behavior"] = behavior;
-
-    QJsonObject performance;
-    def["performance"] = performance;
-
-    config["default"] = def;
+    config["libraries"] = QJsonArray();
+    config["default"] = hardDefaults();
     return config;
 }
 
 QSize ConfigManager::getWindowSize() const {
-    QJsonObject window = defaultBlock()["window"].toObject();
-    QJsonArray sizeArray = window["size"].toArray();
-    if (sizeArray.size() == 2)
-        return QSize(sizeArray[0].toInt(), sizeArray[1].toInt());
-    return QSize(540, 430);
+    QJsonArray a = defVal("window", "size").toArray();
+    return a.size() == 2 ? QSize(a[0].toInt(), a[1].toInt()) : QSize(540, 430);
 }
 
 QPoint ConfigManager::getWindowPosition() const {
-    QJsonObject window = defaultBlock()["window"].toObject();
-    QJsonArray posArray = window["position"].toArray();
-    if (posArray.size() == 2)
-        return QPoint(posArray[0].toInt(), posArray[1].toInt());
-    return QPoint(900, 50);
+    QJsonArray a = defVal("window", "position").toArray();
+    return a.size() == 2 ? QPoint(a[0].toInt(), a[1].toInt()) : QPoint(900, 50);
 }
 
 int ConfigManager::getCategoryButtonSize() const {
-    return defaultBlock()["ui"].toObject()["categoryButtonSize"].toInt(90);
+    return defVal("ui", "categoryButtonSize").toInt();
 }
 
 int ConfigManager::getGridCellSize() const {
-    return defaultBlock()["ui"].toObject()["gridCellSize"].toInt(120);
+    return defVal("ui", "gridCellSize").toInt();
 }
 
 int ConfigManager::getGridColumns() const {
-    return defaultBlock()["ui"].toObject()["gridColumns"].toInt(3);
+    return defVal("ui", "gridColumns").toInt();
 }
 
 int ConfigManager::getRecentLimit() const {
-    return defaultBlock()["ui"].toObject()["recentLimit"].toInt(100);
+    return defVal("ui", "recentLimit").toInt();
 }
 
 bool ConfigManager::recentEnabled() const {
-    return defaultBlock()["ui"].toObject()["recentEnabled"].toBool(true);
+    return defVal("ui", "recentEnabled").toBool();
 }
 
 int ConfigManager::getThumbnailCacheSize() const {
@@ -270,39 +287,39 @@ void ConfigManager::setThumbnailCacheSize(int v) {
 }
 
 bool ConfigManager::animateThumbnails() const {
-    return defaultBlock()["behavior"].toObject()["animateThumbnails"].toBool(false);
+    return defVal("behavior", "animateThumbnails").toBool();
 }
 
 bool ConfigManager::animatePreview() const {
-    return defaultBlock()["behavior"].toObject()["animatePreview"].toBool(true);
+    return defVal("behavior", "animatePreview").toBool();
 }
 
 bool ConfigManager::showFileTypeTag() const {
-    return defaultBlock()["behavior"].toObject()["showFileTypeTag"].toBool(true);
+    return defVal("behavior", "showFileTypeTag").toBool();
 }
 
 bool ConfigManager::showStickerName() const {
-    return defaultBlock()["behavior"].toObject()["showStickerName"].toBool(true);
+    return defVal("behavior", "showStickerName").toBool();
 }
 
 bool ConfigManager::showStickerSize() const {
-    return defaultBlock()["behavior"].toObject()["showStickerSize"].toBool(true);
+    return defVal("behavior", "showStickerSize").toBool();
 }
 
 bool ConfigManager::showCategoryName() const {
-    return defaultBlock()["behavior"].toObject()["showCategoryName"].toBool(true);
+    return defVal("behavior", "showCategoryName").toBool();
 }
 
 bool ConfigManager::showCategoryCount() const {
-    return defaultBlock()["behavior"].toObject()["showCategoryCount"].toBool(true);
+    return defVal("behavior", "showCategoryCount").toBool();
 }
 
 bool ConfigManager::copyOnDoubleClick() const {
-    return defaultBlock()["behavior"].toObject()["copyOnDoubleClick"].toBool(true);
+    return defVal("behavior", "copyOnDoubleClick").toBool();
 }
 
 bool ConfigManager::highlightOnClick() const {
-    return defaultBlock()["behavior"].toObject()["highlightOnClick"].toBool(true);
+    return defVal("behavior", "highlightOnClick").toBool();
 }
 
 int ConfigManager::getSearchDelayMs() const {
@@ -314,53 +331,37 @@ void ConfigManager::setSearchDelayMs(int v) {
 }
 
 bool ConfigManager::getDefaultAlwaysOnTop() const {
-    return defaultBlock()["window"].toObject()["alwaysOnTop"].toBool(true);
+    return defVal("window", "alwaysOnTop").toBool();
 }
 
 QSize ConfigManager::getEffectiveWindowSize(const LibraryConfig &lib) const {
-    QJsonObject win = libCatSettings(lib, "window");
-    QJsonArray arr = win["size"].toArray();
-    if (arr.size() == 2)
-        return QSize(arr[0].toInt(), arr[1].toInt());
-    return getWindowSize();
+    QJsonArray a = effVal(lib, "window", "size").toArray();
+    return a.size() == 2 ? QSize(a[0].toInt(), a[1].toInt()) : getWindowSize();
 }
 
 QPoint ConfigManager::getEffectiveWindowPosition(const LibraryConfig &lib) const {
-    QJsonObject win = libCatSettings(lib, "window");
-    QJsonArray arr = win["position"].toArray();
-    if (arr.size() == 2)
-        return QPoint(arr[0].toInt(), arr[1].toInt());
-    return getWindowPosition();
+    QJsonArray a = effVal(lib, "window", "position").toArray();
+    return a.size() == 2 ? QPoint(a[0].toInt(), a[1].toInt()) : getWindowPosition();
 }
 
 int ConfigManager::getEffectiveCategoryButtonSize(const LibraryConfig &lib) const {
-    QJsonObject o = libCatSettings(lib, "ui");
-    if (o.contains("categoryButtonSize")) return o["categoryButtonSize"].toInt();
-    return getCategoryButtonSize();
+    return effVal(lib, "ui", "categoryButtonSize").toInt();
 }
 
 int ConfigManager::getEffectiveGridCellSize(const LibraryConfig &lib) const {
-    QJsonObject o = libCatSettings(lib, "ui");
-    if (o.contains("gridCellSize")) return o["gridCellSize"].toInt();
-    return getGridCellSize();
+    return effVal(lib, "ui", "gridCellSize").toInt();
 }
 
 int ConfigManager::getEffectiveGridColumns(const LibraryConfig &lib) const {
-    QJsonObject o = libCatSettings(lib, "ui");
-    if (o.contains("gridColumns")) return o["gridColumns"].toInt();
-    return getGridColumns();
+    return effVal(lib, "ui", "gridColumns").toInt();
 }
 
 int ConfigManager::getEffectiveRecentLimit(const LibraryConfig &lib) const {
-    QJsonObject o = libCatSettings(lib, "ui");
-    if (o.contains("recentLimit")) return o["recentLimit"].toInt();
-    return getRecentLimit();
+    return effVal(lib, "ui", "recentLimit").toInt();
 }
 
 bool ConfigManager::getEffectiveRecentEnabled(const LibraryConfig &lib) const {
-    QJsonObject o = libCatSettings(lib, "ui");
-    if (o.contains("recentEnabled")) return o["recentEnabled"].toBool();
-    return recentEnabled();
+    return effVal(lib, "ui", "recentEnabled").toBool();
 }
 
 int ConfigManager::getEffectiveThumbnailCacheSize(const LibraryConfig &) const {
@@ -368,63 +369,43 @@ int ConfigManager::getEffectiveThumbnailCacheSize(const LibraryConfig &) const {
 }
 
 bool ConfigManager::getEffectiveAnimateThumbnails(const LibraryConfig &lib) const {
-    QJsonObject o = libCatSettings(lib, "behavior");
-    if (o.contains("animateThumbnails")) return o["animateThumbnails"].toBool();
-    return animateThumbnails();
+    return effVal(lib, "behavior", "animateThumbnails").toBool();
 }
 
 bool ConfigManager::getEffectiveAnimatePreview(const LibraryConfig &lib) const {
-    QJsonObject o = libCatSettings(lib, "behavior");
-    if (o.contains("animatePreview")) return o["animatePreview"].toBool();
-    return animatePreview();
+    return effVal(lib, "behavior", "animatePreview").toBool();
 }
 
 bool ConfigManager::getEffectiveShowFileTypeTag(const LibraryConfig &lib) const {
-    QJsonObject o = libCatSettings(lib, "behavior");
-    if (o.contains("showFileTypeTag")) return o["showFileTypeTag"].toBool();
-    return showFileTypeTag();
+    return effVal(lib, "behavior", "showFileTypeTag").toBool();
 }
 
 bool ConfigManager::getEffectiveShowStickerName(const LibraryConfig &lib) const {
-    QJsonObject o = libCatSettings(lib, "behavior");
-    if (o.contains("showStickerName")) return o["showStickerName"].toBool();
-    return showStickerName();
+    return effVal(lib, "behavior", "showStickerName").toBool();
 }
 
 bool ConfigManager::getEffectiveShowStickerSize(const LibraryConfig &lib) const {
-    QJsonObject o = libCatSettings(lib, "behavior");
-    if (o.contains("showStickerSize")) return o["showStickerSize"].toBool();
-    return showStickerSize();
+    return effVal(lib, "behavior", "showStickerSize").toBool();
 }
 
 bool ConfigManager::getEffectiveShowCategoryName(const LibraryConfig &lib) const {
-    QJsonObject o = libCatSettings(lib, "behavior");
-    if (o.contains("showCategoryName")) return o["showCategoryName"].toBool();
-    return showCategoryName();
+    return effVal(lib, "behavior", "showCategoryName").toBool();
 }
 
 bool ConfigManager::getEffectiveShowCategoryCount(const LibraryConfig &lib) const {
-    QJsonObject o = libCatSettings(lib, "behavior");
-    if (o.contains("showCategoryCount")) return o["showCategoryCount"].toBool();
-    return showCategoryCount();
+    return effVal(lib, "behavior", "showCategoryCount").toBool();
 }
 
 bool ConfigManager::getEffectiveHighlightOnClick(const LibraryConfig &lib) const {
-    QJsonObject o = libCatSettings(lib, "behavior");
-    if (o.contains("highlightOnClick")) return o["highlightOnClick"].toBool();
-    return highlightOnClick();
+    return effVal(lib, "behavior", "highlightOnClick").toBool();
 }
 
 bool ConfigManager::getEffectiveCopyOnDoubleClick(const LibraryConfig &lib) const {
-    QJsonObject o = libCatSettings(lib, "behavior");
-    if (o.contains("copyOnDoubleClick")) return o["copyOnDoubleClick"].toBool();
-    return copyOnDoubleClick();
+    return effVal(lib, "behavior", "copyOnDoubleClick").toBool();
 }
 
 bool ConfigManager::getEffectiveAlwaysOnTop(const LibraryConfig &lib) const {
-    QJsonObject o = libCatSettings(lib, "window");
-    if (o.contains("alwaysOnTop")) return o["alwaysOnTop"].toBool();
-    return getDefaultAlwaysOnTop();
+    return effVal(lib, "window", "alwaysOnTop").toBool();
 }
 
 QString ConfigManager::getConfigPath() const {

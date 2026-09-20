@@ -18,6 +18,7 @@
 #include "tray.h"
 #include "imageloader.h"
 #include "fsutil.hpp"
+#include "labeltagst.hpp"
 
 StickerCell::StickerCell(const QString &filePath, int cellSize, QWidget *parent)
     : QFrame(parent)
@@ -42,31 +43,15 @@ StickerCell::StickerCell(const QString &filePath, int cellSize, QWidget *parent)
 
     // 文件类型标签（左下角覆盖）
     QFileInfo fi(m_filePath);
-    m_tagLabel = new QLabel(fi.suffix().toUpper(), this);
-    m_tagLabel->setStyleSheet(
-        "QLabel {"
-        "  background-color: rgba(0, 0, 0, 150);"
-        "  color: #ffffff;"
-        "  padding: 1px 5px;"
-        "  font-size: 10px;"
-        "  border-radius: 3px;"
-        "}"
-    );
+    m_tagLabel = new QLabel(formatFileType(m_filePath), this);
+    m_tagLabel->setStyleSheet(kOverlayLabelStyle);
     m_tagLabel->adjustSize();
     m_tagLabel->move(7, cellSize - m_tagLabel->height() - 7);
     m_tagLabel->hide();
 
     // 文件名标签（左上角覆盖，不含后缀）
     m_fileNameLabel = new QLabel(fi.completeBaseName(), this);
-    m_fileNameLabel->setStyleSheet(
-        "QLabel {"
-        "  background-color: rgba(0, 0, 0, 150);"
-        "  color: #ffffff;"
-        "  padding: 1px 5px;"
-        "  font-size: 10px;"
-        "  border-radius: 3px;"
-        "}"
-    );
+    m_fileNameLabel->setStyleSheet(kOverlayLabelStyle);
     QFontMetrics nameFm(m_fileNameLabel->font());
     m_fileNameLabel->setText(nameFm.elidedText(fi.completeBaseName(), Qt::ElideRight, cellSize - 24));
     m_fileNameLabel->adjustSize();
@@ -74,15 +59,7 @@ StickerCell::StickerCell(const QString &filePath, int cellSize, QWidget *parent)
 
     // 文件大小标签（右下角覆盖）
     m_sizeLabel = new QLabel(formatBytes(fi.size()), this);
-    m_sizeLabel->setStyleSheet(
-        "QLabel {"
-        "  background-color: rgba(0, 0, 0, 150);"
-        "  color: #ffffff;"
-        "  padding: 1px 5px;"
-        "  font-size: 10px;"
-        "  border-radius: 3px;"
-        "}"
-    );
+    m_sizeLabel->setStyleSheet(kOverlayLabelStyle);
     m_sizeLabel->adjustSize();
     m_sizeLabel->move(cellSize - m_sizeLabel->width() - 7,
                       cellSize - m_sizeLabel->height() - 7);
@@ -223,28 +200,31 @@ void StickerCell::setShowFileSize(bool show) {
     m_sizeLabel->setVisible(show);
 }
 
+void StickerCell::setHighlighted(bool on) {
+    if (m_isHighlighted == on) return;
+    m_isHighlighted = on;
+    if (on) {
+        QColor hl = QApplication::palette().color(QPalette::Highlight);
+        QString ss = QString("QFrame { background-color: %1; border: 2px solid %2; }")
+                          .arg(hl.lighter(180).name()).arg(hl.name());
+        qDebug() << "[CELL] setHighlighted ON:" << m_filePath << "bg=" << hl.lighter(180).name() << "border=" << hl.name() << "ss=" << ss;
+        setStyleSheet(ss);
+    } else {
+        qDebug() << "[CELL] setHighlighted OFF:" << m_filePath;
+        setStyleSheet(QString());
+    }
+    update();
+}
+
 void StickerCell::clearHighlight() {
-    m_isHighlighted = false;
-    setStyleSheet(QString());
+    setHighlighted(false);
 }
 
 void StickerCell::mousePressEvent(QMouseEvent *event) {
-    if (m_highlightEnabled) {
-        m_isHighlighted = true;
-        QColor hl = palette().color(QPalette::Highlight);
-        setStyleSheet(QString("QFrame { background-color: %1; border: 2px solid %2; }")
-                          .arg(hl.lighter(180).name())
-                          .arg(hl.name()));
-    }
-
     if (event->button() == Qt::RightButton)
-    {
         emit rightClicked(m_filePath);
-    }
     else
-    {
         emit clicked(m_filePath);
-    }
 }
 
 void StickerCell::mouseDoubleClickEvent(QMouseEvent *event) {

@@ -3,7 +3,7 @@
 #include <QPainter>
 
 QPixmap makeClockIcon(const QColor &accent, int size) {
-    QPixmap source(":/assets/Clock - 24x24.png");
+    QPixmap source(":/assets/clock.png");
     if (source.isNull())
         return QPixmap();
 
