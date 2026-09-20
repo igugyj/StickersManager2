@@ -18,8 +18,8 @@
 #include "convertcodetostring.hpp"
 #include "launcher.hpp"
 #include "settingsdialog.h"
-#include "updatechecker.h"
 #include "appinfo.h"
+#include "checkupdate.hpp"
 
 #ifdef CONSOLE
 #define DEBUG_MODE true
@@ -32,7 +32,6 @@ static void rebuildHotkeyMapping(const QMap<QString, MainWindow *> &windows, QMa
 int main(int argc, char *argv[])
 {
     initLogFile();
-    setLogLevel(LogLevel::Debug);
     if (!DEBUG_MODE)
         qInstallMessageHandler(messageHandler);
     QApplication app(argc, argv);
@@ -310,18 +309,7 @@ int main(int argc, char *argv[])
 
     TrayIcon::instance()->show();
 
-    if (config.getCheckForUpdatesOnStartup())
-    {
-        auto *checker = new UpdateChecker();
-        QObject::connect(checker, &UpdateChecker::finished, [checker](bool success, const QString &latestVersion, const QString &)
-                         {
-            if (success && UpdateChecker::compareVersions(latestVersion, AppInfo::version()) > 0) {
-                TrayIcon::showMessage("Update Available",
-                                      "Stickers Manager " + latestVersion + " is now available.");
-            }
-            checker->deleteLater(); });
-        checker->check();
-    }
+    checkupdate(config.getCheckForUpdatesOnStartup());
 
     return app.exec();
 }

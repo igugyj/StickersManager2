@@ -42,7 +42,7 @@ TrayIcon::TrayIcon(QObject *parent)
         setIcon(icon);
     }
 
-    setToolTip(AppInfo::name() + " " + AppInfo::version());
+    setToolTip(QString("%1 %2").arg(AppInfo::name()).arg(AppInfo::version()));
 
     menu = new CustomMenu();
 

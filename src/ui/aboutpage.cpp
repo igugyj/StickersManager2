@@ -34,15 +34,15 @@ AboutPage::AboutPage(ConfigManager *config, QWidget *parent)
     infoForm->addRow("Author:", new QLabel(AppInfo::author(), this));
     infoForm->addRow("License:", new QLabel(AppInfo::license(), this));
 
-    auto *repoLink = new QLabel("<a href='#' style='color: palette(highlight);'>" + AppInfo::repoUrl() + "</a>", this);
+    auto *repoLink = new HightLabel(AppInfo::repoUrl(), this);
     repoLink->setCursor(Qt::PointingHandCursor);
     connect(repoLink, &QLabel::linkActivated, []() { launch(AppInfo::repoUrl()); });
     infoForm->addRow("Repository:", repoLink);
 
-    auto *issuesLink = new QLabel("<a href='#' style='color: palette(highlight);'>Feedback</a>", this);
+    auto *issuesLink = new HightLabel("issue", this);
     issuesLink->setCursor(Qt::PointingHandCursor);
     connect(issuesLink, &QLabel::linkActivated, []() { launch(AppInfo::issuesUrl()); });
-    infoForm->addRow("Feedback:", issuesLink);
+    infoForm->addRow("issue:", issuesLink);
 
     contentLayout->addWidget(infoGroup);
 
@@ -55,13 +55,13 @@ AboutPage::AboutPage(ConfigManager *config, QWidget *parent)
     };
 
     QString appPath = QCoreApplication::applicationFilePath();
-    auto *appPathLink = new QLabel("<a href='#' style='color: palette(highlight);'>" + appPath + "</a>", this);
+    auto *appPathLink = new HightLabel(appPath, this);
     appPathLink->setCursor(Qt::PointingHandCursor);
     connect(appPathLink, &QLabel::linkActivated, this, [appPath]() { launch(QFileInfo(appPath).absolutePath()); });
     pathsForm->addRow("Executable:", appPathLink);
 
     QString cfgDir = QFileInfo(m_config->getConfigPath()).absolutePath();
-    auto *cfgLink = new QLabel("<a href='#' style='color: palette(highlight);'>" + cfgDir + "</a>", this);
+    auto *cfgLink = new HightLabel(cfgDir, this);
     cfgLink->setCursor(Qt::PointingHandCursor);
     connect(cfgLink, &QLabel::linkActivated, this, [cfgDir]() { launch(cfgDir); });
     pathsForm->addRow("Config folder:", cfgLink);
@@ -90,4 +90,11 @@ AboutPage::AboutPage(ConfigManager *config, QWidget *parent)
 
     scrollArea->setWidget(content);
     root->addWidget(scrollArea);
+}
+
+HightLabel::HightLabel(const QString &text, QWidget *parent, Qt::WindowFlags f)
+{
+    setText("<a href='#' style='color: palette(highlight);'>" + text + "</a>");
+    setParent(parent);
+    setWindowFlags(f);
 }

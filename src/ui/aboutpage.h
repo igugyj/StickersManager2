@@ -2,11 +2,18 @@
 #define ABOUTPAGE_H
 
 #include <QWidget>
+#include <QLabel>
 
 class ConfigManager;
-class QLabel;
+class HightLabel : public QLabel
+{
+    Q_OBJECT
+public:
+    HightLabel(const QString &text, QWidget *parent = nullptr, Qt::WindowFlags f = Qt::WindowFlags());
+};
 
-class AboutPage : public QWidget {
+class AboutPage : public QWidget
+{
     Q_OBJECT
 public:
     explicit AboutPage(ConfigManager *config, QWidget *parent = nullptr);

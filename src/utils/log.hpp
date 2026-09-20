@@ -26,11 +26,14 @@ static QMutex g_logMutex; // 日志写入互斥锁
 
 // 输出到控制台的宏（如果启用）
 #ifdef CONSOLE
-#define LOG_TO_CONSOLE(txt) do { \
-    QMutexLocker locker(&g_logMutex); \
-    QTextStream out(stdout); \
-    out << txt << Qt::endl; \
-} while(0)
+#define LOG_TO_CONSOLE(txt)                      \
+    do                                           \
+    {                                            \
+        QMutexLocker locker(&g_logMutex);        \
+        QTextStream out(stdout);                 \
+        out.setEncoding(QStringConverter::Utf8); \
+        out << txt << Qt::endl;                  \
+    } while (0)
 #else
 #define LOG_TO_CONSOLE(txt)
 #endif
