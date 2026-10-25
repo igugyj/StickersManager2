@@ -4,6 +4,24 @@
 
 ---
 
+## [2026-10-25]
+
+### CMake 现代化 + 日志系统重构 + Qt 路径去硬编码（参照 Pelr）
+
+- CMake 配置现代化
+  - `cmake_minimum_required` 3.5 → 3.16；`CMAKE_BUILD_TYPE` 未设置默认 Debug；新增配置期 `message(STATUS)` 日志（构建类型 / 编译器 ID / CONSOLE / Qt 查找来源）
+  - `CONSOLE` 由硬编码 `set(CONSOLE OFF)` 改为按构建类型推导（Release=OFF、其它=ON），`-DCONSOLE=ON/OFF` 可覆盖
+  - 编译器识别补全：GNU → `-finput-charset=UTF-8 -fexec-charset=UTF-8`（修 MinGW 中文），MSVC → `/utf-8`
+  - `QT_PATH` 去硬编码（默认空 + `if (QT_PATH)` 守卫，避免清掉 configureArgs 传入的 `CMAKE_PREFIX_PATH`）；优先级 `-DQT_PATH`（CI）> `.vscode/settings.json` > 系统查找；新建 `.vscode/settings.json`（gitignored，CMake Tools 的 `cmake.configureArgs` 注入 Qt 路径，`cmake.buildDirectory` 平铺 `build/`）
+- 锁文件区分发行/测试版
+  - Debug 构建经 `$<$<CONFIG:Debug>:SM_TEST_BUILD>` 注入宏 → `%TEMP%/<user>_Stickers Manager_debug.lock`；Release 锁名不变，两版可同时运行（`main.cpp:44-48`）
+- 日志系统重构（Pelr logger 模式）
+  - `log.hpp` 拆为声明 + `log.cpp` 实现：`extern g_logLevel/g_logMutex` 单例 + 带锁 `set/getLogLevel()`，消除头文件 `static` 每 TU 副本隐患
+  - 控制台中文乱码根治：`writeToConsole()` 用 `WriteConsoleW` 直写 UTF-16 绕开控制台代码页，输出被重定向时回退 UTF-8 字节写 `stderr`
+  - `messageHandler` 始终安装：控制台构建 控制台+文件 双写，非控制台仅文件（此前控制台构建根本不写日志文件）；删除 `DEBUG_MODE` 宏与 `LOG_TO_CONSOLE` 宏
+  - 分级日志：`defaultLogLevel()` 按构建类型（CONSOLE=Debug、否则 Warning）；`settings.json` 新增 `logLevel` 键（空=未设置→构建默认）；Base 页新增 Logging 分组 Log Level 下拉（Debug/Info/Warning/Critical/Fatal，显示实际生效级别，选中值等于构建默认时清除键不落盘）；`main.cpp` 在启动及 3 处 `loadSettings()` 后 `applyLogLevel()`；新增中文启动日志行
+  - 验证：字节级确认 `log.log` 为合法 UTF-8；`logLevel=Warning` 时 0 条 Debug / 2 条 Warning
+
 ## [2025-01-16]
 
 ### 高亮管理重构 + 预览窗口精简

@@ -2,9 +2,10 @@
 
 ## Build & config
 ```bash
-cd build && cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Debug && cmake --build . -- -j8
+cd build && cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Debug -DQT_PATH=D:/Qt/6.10.1/mingw_64 && cmake --build . -- -j8
 ```
-- Qt 6.10.1 MinGW, `QT_PATH` cache variable default `D:/Qt/6.10.1/mingw_64` (`CMakeLists.txt:37-38`), overridable via `-DQT_PATH=...` (CI: `-DQT_PATH=${{ env.Qt6_DIR }}`); `CMAKE_PREFIX_PATH` set from it, windeployqt POST_BUILD follows it
+- Qt 6.10.1 MinGW; Qt path is **no longer hardcoded** (`CMakeLists.txt:37-44`, cache default empty): lookup priority `-DQT_PATH` (CI passes `-DQT_PATH=${{ env.Qt6_DIR }}`) > `.vscode/settings.json` `cmake.configureArgs` `-DCMAKE_PREFIX_PATH=...` (VSCode CMake Tools) > system `find_package` search; `set(CMAKE_PREFIX_PATH ...)` runs **only when `QT_PATH` is non-empty** (guard — otherwise it would wipe the configureArgs-passed value), configure prints `Qt lookup: QT_PATH='...' CMAKE_PREFIX_PATH='...'` (both empty ⇒ `find_package(Qt6 REQUIRED)` fails by design on a fresh clone without one of them)
+- `.vscode/settings.json` (**gitignored** via `.gitignore:5`, local-only, Pelr-style): `cmake.buildDirectory` = flat `${workspaceFolder}/build`, `cmake.configureArgs` injects `-DCMAKE_PREFIX_PATH=<Qt path>`; requires the **CMake Tools** extension; generator/compiler still come from PATH + CMake Tools kit (not declared in the file)
 - `CMakeLists.txt` links `Qt6::Core Gui Widgets Concurrent Network`; new source files need re-run `cmake ..` to be picked up (`FILE(GLOB_RECURSE ./src/)` for `.cpp/.h/.hpp`); `cmake_minimum_required(3.16)`
 - Configure prints `message(STATUS)` lines: `CMAKE_BUILD_TYPE` (defaults to **Debug** when unset, `CMakeLists.txt:5-10`) + compiler id/version; UTF-8 charset flags by compiler (`CMakeLists.txt:46-50`): GNU → `-finput-charset=UTF-8 -fexec-charset=UTF-8`, MSVC → `/utf-8`
 - `CONSOLE` is **derived from build type when not passed** (`CMakeLists.txt:16-26`): Release → OFF, anything else → ON; override with `-DCONSOLE=ON/OFF`. ON → console window (`WIN32_EXECUTABLE FALSE`) + `add_compile_definitions(CONSOLE)` (enables the console half of logging in `log.cpp`); subsystem is set once via target property, no `WIN32` flag duplication. C++20, `UNICODE`/`_UNICODE` defined

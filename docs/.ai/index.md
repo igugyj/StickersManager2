@@ -8,6 +8,25 @@
 4. 两条运行时重载路径不可混淆：`fullReload`（托盘 Rescan，重建窗口+重扫库） vs `applyChanges`（设置 applied 信号，只更新配置不重扫）
 5. 任务完成后必须：清冗余 + 更新对应文档 + 写 changelog
 
+## 当前变更快照（2026-10-25，三次会话任务）
+
+> 详细条目见 [changelog.md](./changelog.md) 顶部；待办规划见根目录 `TODO`
+
+1. **CMake 配置现代化 + 锁文件区分**（参照 Pelr）
+   - `cmake_minimum_required` 3.5→3.16；`CMAKE_BUILD_TYPE` 未设默认 Debug；配置期 `message(STATUS)` 日志（构建类型/编译器/CONSOLE）
+   - `CONSOLE` 改为按构建类型推导（Release=OFF、其它=ON，`-DCONSOLE=ON/OFF` 可覆盖），不再硬编码 `set(CONSOLE OFF)`
+   - 编译器识别补全：GNU → `-finput-charset=UTF-8 -fexec-charset=UTF-8`，MSVC → `/utf-8`
+   - 锁文件区分构建：Release 保持 `%TEMP%/<user>_Stickers Manager.lock`；Debug 注入 `SM_TEST_BUILD`（`$<$<CONFIG:Debug>:...>`）→ `<user>_Stickers Manager_debug.lock`，可与正式版并行运行
+2. **日志系统重构**（参照 Pelr logger）
+   - `log.hpp` 拆为声明 + `log.cpp` 实现：`extern` 单例 + 锁（消除 per-TU `static` 副本隐患）
+   - 控制台中文乱码根治：`WriteConsoleW` 直写 UTF-16（绕开代码页），重定向时回退 UTF-8 → `stderr`
+   - `messageHandler` **始终安装**（控制台+文件双写）；删除 `DEBUG_MODE` 宏
+   - 分级日志：`defaultLogLevel()` 按构建类型（Debug 构建=Debug、Release=Warning）；`settings.json` 新增 `logLevel`；Base 页新增 Logging/Log Level 下拉（显示实际生效级别，无 Auto 项，等于构建默认时不落盘）；`main.cpp` 4 处 `applyLogLevel()`；新增中文启动日志行
+   - **`settings.json` 结构变了**：多了可选键 `logLevel`（`config/settings-json.md` 需同步）
+3. **Qt 路径去硬编码 → `.vscode`**（参照 Pelr）
+   - `CMakeLists.txt:37-44`：`QT_PATH` 默认空 + `if (QT_PATH)` 守卫 + `Qt lookup:` 日志；优先级 `-DQT_PATH`（CI）> `.vscode/settings.json` configureArgs > 系统查找
+   - 新建 `.vscode/settings.json`（**gitignored 本地文件**）：`cmake.buildDirectory` 平铺 `build/`、`cmake.configureArgs` 注入 `-DCMAKE_PREFIX_PATH`；需 VSCode **CMake Tools** 扩展（本机尚未安装）
+
 ## 项目类型
 
 Windows 桌面贴纸管理器，C++20 + Qt 6.10.1（Widgets），MinGW 构建，单实例托盘应用，本地文件夹即贴纸库。

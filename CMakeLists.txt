@@ -34,8 +34,14 @@ endif ()
 # （Release 构建不定义该宏，锁名保持 <user>_Stickers Manager.lock 不变）
 add_compile_definitions($<$<CONFIG:Debug>:SM_TEST_BUILD>)
 
-set(QT_PATH "D:/Qt/6.10.1/mingw_64" CACHE PATH "Qt installation root (override for CI: -DQT_PATH=<Qt6_DIR>)")
-set(CMAKE_PREFIX_PATH ${QT_PATH})
+# Qt 路径不再硬编码：查找优先级 -DQT_PATH（CI/CLI）> .vscode/settings.json 的
+# cmake.configureArgs（VSCode CMake Tools）> 系统默认查找。只在显式给出时设置，
+# 否则会清掉 configureArgs 传入的 CMAKE_PREFIX_PATH。
+set(QT_PATH "" CACHE PATH "Qt installation root (CI: -DQT_PATH=<Qt6_DIR>; VSCode: .vscode/settings.json)")
+if (QT_PATH)
+    set(CMAKE_PREFIX_PATH ${QT_PATH})
+endif ()
+message(STATUS "Qt lookup: QT_PATH='${QT_PATH}' CMAKE_PREFIX_PATH='${CMAKE_PREFIX_PATH}'")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_AUTOMOC ON)
