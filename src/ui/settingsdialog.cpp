@@ -37,11 +37,17 @@ SettingsDialog::SettingsDialog(ConfigManager *config, bool keepOpenOnSave, QWidg
 
     layout->addWidget(m_tabWidget);
 
-    // library ids are renumbered on drag-reorder; refresh the target combo when Base is shown
+    // library ids are renumbered on drag-reorder; refresh the target combo when Base is shown.
+    // 跨页冲突刷新：设置热键 ↔ 库热键双向标红，切页时按对方最新状态重算。
     int baseTabIndex = m_tabWidget->indexOf(m_basePage);
-    connect(m_tabWidget, &QTabWidget::currentChanged, this, [this, baseTabIndex](int index) {
-        if (index == baseTabIndex)
+    int libTabIndex = m_tabWidget->indexOf(m_libraryPage);
+    connect(m_tabWidget, &QTabWidget::currentChanged, this, [this, baseTabIndex, libTabIndex](int index) {
+        if (index == baseTabIndex) {
             m_basePage->refreshTargets();
+            m_basePage->refreshHotkeyConflict();
+        } else if (index == libTabIndex) {
+            m_libraryPage->validateAllHotkeys();
+        }
     });
 
     auto *saveBtn = new QPushButton("Save && Reload");
@@ -55,6 +61,10 @@ SettingsDialog::SettingsDialog(ConfigManager *config, bool keepOpenOnSave, QWidg
 
     connect(saveBtn, &QPushButton::clicked, this, &SettingsDialog::onSave);
     connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
+}
+
+bool SettingsDialog::isHotkeyRecording() const {
+    return m_basePage && m_basePage->isHotkeyRecording();
 }
 
 void SettingsDialog::onSave() {

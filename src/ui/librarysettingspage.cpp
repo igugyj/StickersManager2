@@ -801,6 +801,11 @@ void LibrarySettingsPage::validateAllHotkeys() {
 
 bool LibrarySettingsPage::hotkeyInUse(int skipIdx, const QString &hk) const {
     if (hk.isEmpty()) return false;
+    // 设置热键（启用时）也算占用：与 Base 页的检测双向对称
+    if (m_config->getOpenSettingsHotkeyEnabled() &&
+        !m_config->getOpenSettingsHotkey().isEmpty() &&
+        ShortcutCompare::compareShortcutKeys(hk, m_config->getOpenSettingsHotkey()))
+        return true;
     for (int j = 0; j < m_libs.size(); ++j) {
         if (j == skipIdx || !m_libs[j].hotkeyBtn || !m_libs[j].enabledCheck ||
             !m_libs[j].enabledCheck->isChecked())

@@ -2,17 +2,18 @@
 
 ## 架构概览
 
-单实例 Qt Widgets 托盘应用。main.cpp 持有全部生命周期：窗口 Map（path→MainWindow）、热键映射、两条重载路径。数据流单向：config → ConfigManager → MainWindow（m_eff 缓存）→ StickerLibrary → 单元格。无复杂状态库，状态在闭包 + QPointer。
+单实例 Qt Widgets 托盘应用。`AppController`（src/ui/appcontroller.h/.cpp，TODO#3 从 main.cpp 外移）持有全部生命周期：窗口 Map（path→MainWindow）、热键映射、两条重载路径；main() 只留启动骨架（锁/QApp/Fusion）。数据流单向：config → ConfigManager → MainWindow（m_eff 缓存）→ StickerLibrary → 单元格。无复杂状态库，状态在成员 + QPointer。
 
 ## 分层与模块
 
-### 入口层（src/main.cpp）
-- 单实例锁、Fusion、托盘、首启设置
+### 入口层（src/main.cpp 43 行 + src/ui/appcontroller.cpp）
+- main.cpp：单实例锁、Fusion、ConfigManager、`AppController::startup()` 调用
+- appcontroller：首启设置（`startup()` 内顺序敏感：首启模态 → createWindows → applySettingsHotkey → 托盘）
 - 窗口生命周期：`createWindows` / `removeStaleWindows`（path 即身份）
-- 热键：`rebuildHotkeyMapping`（只收 enabled && hotkey 非空）→ `keyReleased` → `compareShortcutKeys` → showWindow/hide
+- 热键：`rebuildHotkeyMapping`（只收 enabled && hotkey 非空）→ `onGlobalKeyReleased` → `compareShortcutKeys` → showWindow/hide
 - 两条重载路径（勿混淆）：
-  - `fullReload`（main.cpp:134）：loadSettings → 重建窗口 → `reloadLibrary()` 重扫 → syncHotkeyListener
-  - `applyChanges`（main.cpp:146）：loadSettings → 重建/删窗口 → `updateLibraryConfig`（不重扫）→ 重算热键 → `applySettings()` → 可见窗口重显
+  - `fullReload`（appcontroller.cpp:176）：loadSettings → 重建窗口 → `reloadLibrary()` 重扫 → syncHotkeyListener
+  - `applyChanges`（appcontroller.cpp:191）：loadSettings → 重建/删窗口 → `updateLibraryConfig`（不重扫）→ 重算热键 → `applySettings()` → 可见窗口重显
 
 ### 配置层（src/core/configmanager.cpp）
 - `ConfigManager`：config.json + settings.json；`loadConfig` 时 `mergeDefaults` 内存归一化（不回写）
@@ -39,7 +40,7 @@
 
 ### 输入层（src/core/globalinputlistener.cpp、convertcodetostring.cpp）
 - Win32 `WH_KEYBOARD_LL` 钩子；键码↔字符串映射
-- 热键映射空 → listener 自动停（main.cpp:120-132）
+- 热键映射空 → listener 自动停（appcontroller.cpp `syncHotkeyListener`，:147-167）
 
 ### 最近使用层（src/core/recentusage.cpp）
 - 每库 `recent_<md5(libPath)>.json`，上限 100（recentLimit 覆盖），旧文件加载清理
@@ -63,13 +64,13 @@ GIF：滚入 loadAnimation（QMovie+QBuffer）→ 滚出 unloadAnimation
 ## 路由架构
 
 桌面应用无 URL 路由。"入口路由"：
-- 托盘双点 → doubleClickTarget 解析（main.cpp:230-272）
+- 托盘双点 → doubleClickTarget 解析（appcontroller.cpp:280-341）
 - 托盘 Show 子菜单 → 库 path → 窗口切换
 - 全局热键 → 库窗口切换
 
 ## 状态管理
 
-- main.cpp 闭包 + QPointer（settingsDlg、firstWindow）；无全局状态库
+- AppController 成员 + QPointer（m_settingsDlg）；无全局状态库（原 `firstWindow` 死代码随重构删除）
 - MainWindow：m_currentCategory、m_currentStickers、m_currentCells、m_cellMap、m_previewDlg（QPointer）
 
 ## 性能优化

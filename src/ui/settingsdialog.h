@@ -14,6 +14,8 @@ class SettingsDialog : public QDialog {
     Q_OBJECT
 public:
     explicit SettingsDialog(ConfigManager *config, bool keepOpenOnSave = false, QWidget *parent = nullptr);
+    // Base 页热键录制中（main.cpp 据此抑制全局热键触发，避免录制时按到热键关掉对话框）
+    bool isHotkeyRecording() const;
 signals:
     void applied();
 private slots:

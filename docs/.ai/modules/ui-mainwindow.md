@@ -26,19 +26,25 @@ m_config + LibraryConfig → 构造 → loadLibrary()（StickerLibrary 扫描）
 右键 → onStickerRightClicked → setHighlightedPath + ImagePreviewDialog(filePath, animatePreview, siblings)
 预览切换 → currentFileChanged → onPreviewFileChanged → setHighlightedPath + 滚动到目标 cell
 关闭预览 → onPreviewClosed → m_highlightManager.clearHighlight()
+窗口 hide → 全 cell setInViewport(false)（卸 GIF）+ ThumbnailCache::clear() → logMemoryState("hidden-released") → 1/5/15/60s `decay+Xs` 采样行
+窗口 show → updateCellVisibility()（恢复视口动画）→ logMemoryState("shown")
 ```
 
 ## 依赖关系
 
 - 依赖：ConfigManager、StickerLibrary、ThumbnailCache、AsyncThumbnailLoader、StickerCell、CategoryButton、ImagePreviewDialog、RecentUsageStore
-- 被依赖：main.cpp（createWindows）、TrayIcon（showSubMenu）
+- 被依赖：AppController（appcontroller.cpp `createWindows`）、TrayIcon（showSubMenu）
 
 ## 关键规则
 
 - **新设置三处**：`EffectiveSettings` 字段 + `refreshEffectiveSettings()` 填充 + 热路径读 `m_eff`（updateVisibleCells）
 - 可见性由 showWindow()/hide() 控制；closeEvent 与 resizeEvent 回写窗口几何
+- **隐藏即释放**（`hideEvent`，2026-10-25 量化后落地）：
+  - 对全部 cell `setInViewport(false)`（复用 scroll-out 路径卸 QMovie）+ `m_thumbnailCache->clear()`，**不** `clearStickerCells()` —— cell 保留 `m_currentPixmap`，重开零闪烁（量化数据：GIF 类目显示 105.7MB → 隐藏 35.2MB，重开 +6s 恢复且 `cellPixKB` 不变）
+  - 大头是 GIF `QMovie`（整文件 QBuffer + 解码帧），缩略图缓存次之（≤10MB）；`showEvent` 里 `updateCellVisibility()` 恢复视口动画
+  - `logMemoryState()` 在 hide/show 输出 `[mem]` 行（cells/cellPixKB/movies/catBtn/cache + `mCreated/mDestroyed` QMovie 计数 + `privMB/wsMB`），Info 级别；hide 释放后另有 1/5/15/60s `decay+Xs` 采样行（判回落 vs 钉死）；`processMemoryUsage()` 助手用 `GetProcessMemoryInfo`（需 `<windows.h>` 在 `<psapi.h>` 之前）
 - Recent 伪分类：空隐藏、首用现场创建、右键清空（见 core-recent）
-- 窗口标题由 main.cpp 设 `"Stickers Manager - <dirName>"`
+- 窗口标题由 AppController 设 `"Stickers Manager - <dirName>"`（appcontroller.cpp:79）
 - **高亮管理**：HighlightManager 路径驱动，单一状态源 `m_highlightedPath`
   - `setHighlightedPath(path)` 设置路径并 refresh 所有 cell
   - `clearHighlight()` 清空路径并 refresh
@@ -51,4 +57,5 @@ m_config + LibraryConfig → 构造 → loadLibrary()（StickerLibrary 扫描）
 
 ## 变更记录索引
 
+- 2026-10-25：隐藏即释放（hideEvent 卸 GIF + 清缩略图缓存）+ `[mem]` 内存埋点（hideEvent/showEvent）
 - 2025-01-14：docs/.ai Init（首次记录）

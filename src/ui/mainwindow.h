@@ -63,6 +63,8 @@ public slots:
 protected:
     void closeEvent(QCloseEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
+    void hideEvent(QHideEvent *event) override;
+    void showEvent(QShowEvent *event) override;
 
 private slots:
     void onSearchTextChanged(const QString &text);
@@ -80,6 +82,7 @@ private slots:
 
 private:
     void initUI();
+    void logMemoryState(const char *reason); // 内存量化埋点（hide/show 时输出驻留明细）
     void refreshEffectiveSettings();
     QWidget *createCategoryPanel();
     QWidget *createStickerPanel();

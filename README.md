@@ -12,25 +12,24 @@ StickersManager
 
 StickersManager is a Windows sticker management tool built with C++20 and Qt 6.10.1. It manages sticker packs from local folders.
 
-![视频标题](https://github.com/user-attachments/assets/d2b5bd03-7ba1-4f4e-9c14-c9a01cbb2302)
+![Demo](https://github.com/user-attachments/assets/d2b5bd03-7ba1-4f4e-9c14-c9a01cbb2302)
 
 ## Features
 
-- **Multi-window** — one window per library
-- **Global hotkeys** — customizable shortcuts per library via Win32 hook
-- **Local folders** — subdirectories become categories
-- **Preview-file filtering** — files named `.preview*` (or containing `.preview.`) are excluded from library scanning, search, and statistics
-- **Category tags** — name (bottom-left) and sticker count (bottom-right) on category buttons; the Recent category uses a clock as its preview icon
-- **Sticker tags** — file name without extension (top-left), file size (bottom-right), and file type (bottom-left) on each cell
-- **Recently used** — a per-library "Recent" category (first in the panel, default view; hidden while empty) sorted by usage time, recorded on copy, with a clock preview icon and a configurable display limit
-- **Search** — search stickers by filename, categories by name
-- **Copy** — double-click to copy to clipboard
-- **Preview** — right-click for full-size view
-- **Hot-reload** — rescan picks up config/library changes at runtime
-- **Animated GIF** — scroll-in/out lifecycle, zero memory for off-screen cells
-- **Override system** — per-library settings override global defaults
-- **Settings dialog** — 4-tab configuration (General / Libraries / Base / About)
-- **Update check** — About page fetches latest release from GitHub API
+- **Libraries & categories** — each library is a local folder, every subfolder becomes a category; search stickers by filename and keep a per-library "Recently Used" list
+- **Multi-window & hotkeys** — one window per library, toggled by global hotkeys (record conflicts highlighted); press **Ctrl+I** to open Settings from anywhere
+- **Stickers** — double-click to copy, right-click for full-size preview, optional tags (name / size / file type) on every cell
+- **Animated GIFs** — play while visible, unload off-screen; hiding a window releases its memory immediately
+- **Configurable** — per-library overrides on top of global defaults, drag-to-reorder libraries, tray double-click target, Start with Windows
+- **Hot reload** — tray *Rescan* picks up config and library changes without restarting
+- **Update check** — on startup and on demand, against the latest GitHub release
+
+## Installation
+
+Download the latest version from the [Releases page](https://github.com/igugyj/StickersManager2/releases):
+
+- `StickersManager_<version>.exe` — installer
+- `StickersManager_<version>.7z` — portable (extract anywhere; configuration lives next to the executable)
 
 ## Project Structure
 
@@ -38,15 +37,18 @@ StickersManager is a Windows sticker management tool built with C++20 and Qt 6.1
 StickersManager/
 ├── CMakeLists.txt
 ├── resources.qrc
-├── assets/              # icons, stylesheet, icon.rc
+├── pkg.iss                # Inno Setup installer script
+├── assets/                # icons, stylesheet, icon.rc
 ├── src/
-│   ├── main.cpp
-│   ├── appinfo.h        # version, author, license, URLs
-│   ├── core/            # config, library, image loading, cache, input
-│   ├── ui/              # mainwindow, tray, dialogs, cells, settings pages
-│   └── utils/           # log.hpp, launcher.hpp
+│   ├── main.cpp           # startup skeleton → AppController
+│   ├── appinfo.h          # version, author, license, URLs
+│   ├── core/              # config, library, image loading, cache, input, update check
+│   ├── ui/                # appcontroller, mainwindow, tray, dialogs, cells, settings pages
+│   └── utils/             # log, launcher, fsutil, keycode maps
+├── scripts/               # release packaging & version-check helpers
+├── docs/                  # design docs
 └── thirdparty/
-    └── stb/             # stb_image, stb_image_resize2
+    └── stb/               # stb_image, stb_image_resize2
 ```
 
 ## Sticker Library Structure
@@ -71,16 +73,26 @@ App-level settings live next to the executable (relative to `[EXE_DIR]`):
 
 ```
 [EXE_DIR]/.stickersmanager/
-├── config.json     # default{} defaults + libraries[] (id, path, hotkey, enabled, settings{})
-└── settings.json   # doubleClickTarget, searchDelayMs, thumbnailCacheSize,
-                    # checkForUpdatesOnStartup, startWithWindows
+├── config.json          # defaults{} + libraries[] (id, path, hotkey, enabled, settings{})
+├── settings.json        # doubleClickTarget, searchDelayMs, thumbnailCacheSize,
+│                        # checkForUpdatesOnStartup, startWithWindows, logLevel,
+│                        # openSettingsHotkey, openSettingsHotkeyEnabled
+└── recent_<md5>.json    # per-library recently-used records
 ```
 
 Configuration is written only on "Save & Reload" in the Settings dialog.
 
 ## Logs
 
-Diagnostics are written to `log/log.log` **relative to the working directory** (created/truncated on each start).
+Diagnostics are written to `log/log.log` **relative to the working directory** (created/truncated on each start). The detail level is configurable in Settings → Base → Logging; debug builds also print to the console.
+
+## Build
+
+```bash
+cd build && cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Debug -DQT_PATH=<path-to-Qt6> && cmake --build . -- -j8
+```
+
+Requires Qt 6.10 and a C++20 toolchain (MinGW 13.1 or MSVC).
 
 ## Third-Party Libraries
 
@@ -93,4 +105,4 @@ Diagnostics are written to `log/log.log` **relative to the working directory** (
 
 ---
 
-> 喜欢的话就点个star，谢谢喵~ ❤
+> If you find this tool useful, a star would be appreciated! ⭐

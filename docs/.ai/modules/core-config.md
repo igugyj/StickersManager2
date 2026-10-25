@@ -23,7 +23,7 @@ settings.json → loadSettings() → getDoubleClickTarget() 等
 ## 依赖关系
 
 - 依赖：Qt Core（QJson/QFile/QSaveFile/QStandardPaths）
-- 被依赖：main.cpp、MainWindow、SettingsDialog 各页、TrayIcon
+- 被依赖：AppController（appcontroller.cpp）、MainWindow、SettingsDialog 各页、TrayIcon
 
 ## 关键规则
 

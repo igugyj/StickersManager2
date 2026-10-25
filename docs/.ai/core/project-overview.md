@@ -10,10 +10,10 @@
 ## 项目类型说明
 
 - 纯桌面 GUI 应用，无后端服务；配置存本地 JSON（`[EXE_DIR]/.stickersmanager/`）
-- 单实例：`QLockFile` 于 `%TEMP%/<user>_Stickers Manager.lock`（main.cpp:48）
+- 单实例：`QLockFile` 于 `%TEMP%/<user>_Stickers Manager.lock`（main.cpp:29-33）
 - 多窗口：一个库一个 `MainWindow`（与热键开关无关），标题 `"Stickers Manager - <dirName>"`
-- 首启动无有效库 → 模态 SettingsDialog 阻塞（main.cpp:201-207）
-- Fusion 风格（main.cpp:58），托盘驻留 `setQuitOnLastWindowClosed(false)`
+- 首启动无有效库 → 模态 SettingsDialog 阻塞（appcontroller.cpp:44-58）
+- Fusion 风格（main.cpp:37-39），托盘驻留 `setQuitOnLastWindowClosed(false)`（main.cpp:36）
 - 图标：`assets/st.png`（qrc 资源，`:/assets/st.png`），窗口图标 `assets/st.ico`（icon.rc）
 
 ## 技术栈
@@ -39,10 +39,10 @@ StickersManager/
 ├── AGENTS.md            # agent 工作指令
 ├── assets/              # st.ico、st.png、menu.qss、icon.rc
 ├── src/
-│   ├── main.cpp         # 入口：锁、窗口生命周期、热键、重载路径
+│   ├── main.cpp         # 入口骨架：锁、QApp、Fusion → AppController::startup()
 │   ├── appinfo.h        # AppInfo：版本/作者/许可/仓库 URL
 │   ├── core/            # config、library、image、cache、input、update、recent
-│   ├── ui/              # mainwindow、tray、dialogs、cells、settings pages
+│   ├── ui/              # appcontroller（编排）、mainwindow、tray、dialogs、cells、settings pages
 │   └── utils/           # log.hpp、launcher.hpp、fsutil.hpp（header-only static）
 ├── thirdparty/stb/      # stb_image.h、stb_image_resize2.h
 ├── build/               # 构建产物（exe 直接在 build/）
@@ -85,7 +85,7 @@ StickersManager/
 - 无 `.ui` 文件：UI 全 C++ 代码；AUTOMOC/AUTORCC/AUTOUIC ON
 - header-only 工具：`static` 函数（每 TU 一份）
 - 线程→GUI 通信：`notifyTray()` QueuedConnection
-- 版本手动 bump（appinfo.h:7），仅发布时
+- 版本手动 bump：`CHANGELOG.md` 顶部为单源 + 同步 `appinfo.h:7` / `pkg.iss`（`scripts/check_version.ps1` 强制三处一致），仅发布时
 - 无测试/CI 门禁/linter
 
 ## 已知问题

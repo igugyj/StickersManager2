@@ -49,6 +49,22 @@ void ThumbnailCache::clear() {
     m_cache.clear();
 }
 
+ThumbnailCache::Stats ThumbnailCache::stats() {
+    QMutexLocker locker(&m_cacheMutex);
+    // QCache 不可遍历：剪掉已被 LRU 淘汰的台账键，剩余即当前驻留
+    for (auto it = m_bytesByKey.begin(); it != m_bytesByKey.end();) {
+        if (!m_cache.contains(it.key()))
+            it = m_bytesByKey.erase(it);
+        else
+            ++it;
+    }
+    Stats s;
+    s.count = m_cache.size();
+    for (const auto &v : std::as_const(m_bytesByKey))
+        s.bytes += v;
+    return s;
+}
+
 void ThumbnailCache::onAsyncThumbnailLoaded(const QString &filePath, const QPixmap &pixmap) {
     // Every load failure already surfaces as a "Load Failed" placeholder from the
     // async loader, so pixmap is never null here; the guard is defensive only.
@@ -60,6 +76,8 @@ void ThumbnailCache::onAsyncThumbnailLoaded(const QString &filePath, const QPixm
     {
         QMutexLocker locker(&m_cacheMutex);
         m_cache.insert(filePath, new QPixmap(pixmap), 1);
+        m_bytesByKey.insert(filePath,
+                            qint64(pixmap.width()) * pixmap.height() * pixmap.depth() / 8);
     }
 
     emit thumbnailReady(filePath, pixmap);

@@ -19,6 +19,14 @@ public:
 
     QString getFilePath() const { return m_filePath; }
 
+    // 内存量化埋点：当前缩略图像素字节 + GIF 动画是否驻留（hide/show 日志用）
+    qint64 pixmapBytes() const {
+        return m_currentPixmap.isNull()
+                   ? 0
+                   : qint64(m_currentPixmap.width()) * m_currentPixmap.height() * m_currentPixmap.depth() / 8;
+    }
+    bool isAnimationLoaded() const { return m_movie != nullptr; }
+
     void setThumbnail(const QPixmap &pixmap);
 
     void clearHighlight();
@@ -52,7 +60,6 @@ protected:
 private:
     void loadAnimation();
     void unloadAnimation();
-
     QString m_filePath;
     QLabel *m_imageLabel;
     QLabel *m_tagLabel;
@@ -72,5 +79,10 @@ private:
     QMovie *m_movie = nullptr;
     QFutureWatcher<QByteArray> *m_animWatcher = nullptr;
 };
+
+// 内存量化埋点：QMovie 创建/销毁全局计数（[mem] 行输出 mCreated/mDestroyed，
+// 差值 > 0 即存在未释放的动画对象 —— 2026-10-25 隐藏后 private bytes 不回落排查）
+int animationMoviesCreated();
+int animationMoviesDestroyed();
 
 #endif // STICKERCELL_H

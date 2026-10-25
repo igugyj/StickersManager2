@@ -1,5 +1,7 @@
 #pragma once
 #include "updatechecker.h"
+#include "appinfo.h" // AppInfo::version()
+#include "tray.h"    // TrayIcon::showMessage
 
 static void checkupdate(bool flag)
 {

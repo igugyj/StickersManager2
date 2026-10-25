@@ -1,0 +1,7 @@
+{
+    // CMake Tools 扩展（ms-vscode.cmake-tools）读取；本机路径，已被 .gitignore 忽略，不入库
+    "cmake.buildDirectory": "${workspaceFolder}/build",
+    "cmake.configureArgs": [
+        "-DCMAKE_PREFIX_PATH=D:/Qt/6.10.1/mingw_64" // 修改为你的 Qt 路径（CMakeLists 不再硬编码默认值）
+    ]
+}

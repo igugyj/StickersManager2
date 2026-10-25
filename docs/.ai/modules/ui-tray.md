@@ -16,13 +16,13 @@
 
 ```
 托盘 Show 子菜单 triggered → 库 path → showWindow()/hide()
-双击 activated(DoubleClick) → getDoubleClickTarget() → settings / first-library / id / dirName（main.cpp:225-272）
+双击 activated(DoubleClick) → getDoubleClickTarget() → settings / first-library / id / dirName（appcontroller.cpp:280-341）
 worker 线程 → notifyTray()（QueuedConnection）→ 托盘消息
 ```
 
 ## 依赖关系
 
-- 依赖：main.cpp（连接信号）、launcher.hpp
+- 依赖：AppController（appcontroller.cpp `setupTray` 连接信号）、launcher.hpp
 - 被依赖：无（单例被 main 驱动）
 
 ## 关键规则

@@ -2,13 +2,13 @@ cmake-build-debug/
 build/
 cmake-build-release/
 .idea
-.vscode
 StickersManager
 
 release/
 release_notes.md
 *.exe
-
+docs/structure
 *.7z
 *.zip
 *.rar
+/TODO

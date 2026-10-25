@@ -53,6 +53,8 @@ class LibrarySettingsPage : public QWidget {
 public:
     explicit LibrarySettingsPage(ConfigManager *config, QWidget *parent = nullptr);
     bool collectToConfig();
+    // 公开供 SettingsDialog 切页时调用（与设置热键的双向冲突刷新）
+    void validateAllHotkeys();
 private slots:
     void addLibrary();
     void removeLibrary(int index);
@@ -64,7 +66,6 @@ private:
 
     void buildFromConfig();
     void rebuildList();
-    void validateAllHotkeys();
     bool hotkeyInUse(int skipIdx, const QString &hk) const;
     void swapLibraries(int a, int b);
     void syncCardIndices();

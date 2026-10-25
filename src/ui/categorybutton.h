@@ -23,6 +23,13 @@ public:
 
     QString getCategoryName() const { return m_categoryName; }
 
+    // 内存量化埋点：预览图像素字节
+    qint64 pixmapBytes() const {
+        return m_currentPixmap.isNull()
+                   ? 0
+                   : qint64(m_currentPixmap.width()) * m_currentPixmap.height() * m_currentPixmap.depth() / 8;
+    }
+
 protected:
     void resizeEvent(QResizeEvent *event) override;
 
