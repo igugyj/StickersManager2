@@ -33,7 +33,7 @@ $body
 
 ### Packaging
 
-portable: **StickersManager_$curVer .7z**
+portable: **StickersManager_$curVer.7z**
 installer: **StickersManager_$curVer.exe**
 
 **Full Changelog**: https://github.com/igugyj/StickersManager2/compare/$prevTag...$curTag

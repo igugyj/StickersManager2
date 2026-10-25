@@ -12,7 +12,7 @@
 # 2. 清构建残留
 python scripts/clean_release.py
 # 3. 编译安装包（版本以 CHANGELOG.md 顶部为单源，check_version.ps1 会校验 pkg.iss/appinfo.h 一致）
-"D:\Program Files\Inno Setup 7\ISCC.exe" /DMyAppVersion=2.8.0 pkg.iss
+"D:\Program Files\Inno Setup 7\ISCC.exe" /DMyAppVersion=2.9.0 pkg.iss
 ```
 
 - pkg.iss 内路径**相对脚本目录**：LICENSE、README.md、assets/st.ico，OutputDir=.

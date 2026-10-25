@@ -1,0 +1,8 @@
+{
+    "recommendations": [
+        "mhutchie.git-graph",
+        "theqtcompany.qt",
+        "ms-vscode.cmake-tools",
+        "ms-vscode.cpptools-extension-pack"
+    ],
+}

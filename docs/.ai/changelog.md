@@ -106,7 +106,7 @@
   - 待验证项：
     - `default.window.position/size` 具体数值（configmanager.cpp:14-15，hardDefaults 实测）
     - settings.json 默认值（configmanager.cpp:58-66，defaultSettings 实测）
-    - ~~版本 2.7.1 与 CHANGELOG.md 顶部是否同步~~（已解决：2026-10-25 起由 `scripts/check_version.ps1` 强制三处一致，当前 2.8.0）
+    - ~~版本 2.7.1 与 CHANGELOG.md 顶部是否同步~~（已解决：2026-10-25 起由 `scripts/check_version.ps1` 强制三处一致，当前 2.9.0）
 
 <!--
 格式：`- 功能/修复/重构标题` + 缩进子项（改了什么 + 为什么 + 关键细节）

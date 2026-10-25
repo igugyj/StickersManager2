@@ -1,3 +1,20 @@
+# Changelog — v2.8.0 → v2.9.0 (2026.10.25)
+
+### Added
+
+- Press **Ctrl+I** to open or close the Settings window at any time (change the shortcut or turn it off in Settings → Base)
+- New **Log Level** option in Settings → Base to control how much detail is written to the log
+
+### Changed
+
+- Hiding a window now releases its memory right away — background usage drops back to normal instead of staying high
+- The app now always writes a log file (`log/log.log`), which makes problems much easier to report
+- The test build and the installed version can now run side by side without interfering
+
+### Fixes
+
+- **Fixed memory that kept growing**: browsing stickers — especially switching categories or scrolling through animated (GIF) folders — pushed memory up by tens of MB each time, and it never went back down after hiding the window (in heavy use it could reach several hundred MB)
+
 # Changelog — v2.7.0 → v2.8.0 (2026-09-20)
 
 ### Added

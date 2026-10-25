@@ -121,6 +121,6 @@ Windows 桌面贴纸管理器，C++20 + Qt 6.10.1（Widgets），MinGW 构建，
 - 发布：`pkg.iss`（Inno Setup）、`release/`、`scripts/clean_release.py`
 - 资源：`assets/`（st.ico、st.png、menu.qss、icon.rc）
 - 第三方：`thirdparty/stb/`（stb_image.h、stb_image_resize2.h）
-- 版本：`src/appinfo.h:7`（当前 `v2.8.0`，带 `v` 前缀；与 `CHANGELOG.md` 顶部、`pkg.iss` 三处须一致，`scripts/check_version.ps1` 强制校验）
+- 版本：`src/appinfo.h:7`（当前 `v2.9.0`，带 `v` 前缀；与 `CHANGELOG.md` 顶部、`pkg.iss` 三处须一致，`scripts/check_version.ps1` 强制校验）
 - 运行时配置：`[EXE_DIR]/.stickersmanager/`（config.json、settings.json、recent_*.json）
 - 日志：`log/log.log`（相对工作目录）
