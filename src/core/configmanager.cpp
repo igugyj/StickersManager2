@@ -62,6 +62,7 @@ static QJsonObject defaultSettings() {
     s["thumbnailCacheSize"] = 200;
     s["checkForUpdatesOnStartup"] = true;
     s["startWithWindows"] = false;
+    s["logLevel"] = QString(); // "" = 未设置，实际默认值按构建类型推导（log.cpp defaultLogLevel()）
     return s;
 }
 
@@ -328,6 +329,18 @@ int ConfigManager::getSearchDelayMs() const {
 
 void ConfigManager::setSearchDelayMs(int v) {
     m_settings["searchDelayMs"] = v;
+}
+
+QString ConfigManager::getLogLevel() const {
+    // "" = 未设置，由调用方回退到 defaultLogLevel()（按构建类型区分）
+    return m_settings["logLevel"].toString();
+}
+
+void ConfigManager::setLogLevel(const QString &v) {
+    if (v.isEmpty())
+        m_settings.remove("logLevel"); // "Auto"：清除键，回到构建类型默认
+    else
+        m_settings["logLevel"] = v;
 }
 
 bool ConfigManager::getDefaultAlwaysOnTop() const {

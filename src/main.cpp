@@ -21,19 +21,12 @@
 #include "appinfo.h"
 #include "checkupdate.hpp"
 
-#ifdef CONSOLE
-#define DEBUG_MODE true
-#else
-#define DEBUG_MODE false
-#endif
-
 static void rebuildHotkeyMapping(const QMap<QString, MainWindow *> &windows, QMap<QString, MainWindow *> &hotkeyToWindow);
 
 int main(int argc, char *argv[])
 {
     initLogFile();
-    if (!DEBUG_MODE)
-        qInstallMessageHandler(messageHandler);
+    qInstallMessageHandler(messageHandler); // 始终安装：控制台 + 日志文件双写
     QApplication app(argc, argv);
     app.setApplicationName("Stickers Manager");
     app.setWindowIcon(QIcon(":/assets/st.png"));
@@ -59,6 +52,15 @@ int main(int argc, char *argv[])
         app.setStyle("Fusion");
 
     ConfigManager config;
+    // 应用日志级别：settings.json 的 logLevel（空/未知 = 按构建类型的默认值）
+    auto applyLogLevel = [&]()
+    {
+        setLogLevel(logLevelFromString(config.getLogLevel(), defaultLogLevel()));
+    };
+    applyLogLevel();
+    qDebug().noquote() << QString("StickersManager 启动 — 日志级别: %1（%2）")
+                              .arg(logLevelToString(getLogLevel()))
+                              .arg(defaultLogLevel() == LogLevel::Debug ? "Debug 构建" : "Release 构建");
     QPointer<SettingsDialog> settingsDlg;
 
     QMap<QString, MainWindow *> windows;
@@ -144,6 +146,7 @@ int main(int argc, char *argv[])
     auto fullReload = [&]()
     {
         config.loadSettings();
+        applyLogLevel();
         auto libs = config.getLibraries();
         removeStaleWindows(libs);
         createWindows(libs);
@@ -157,6 +160,7 @@ int main(int argc, char *argv[])
     auto applyChanges = [&]()
     {
         config.loadSettings();
+        applyLogLevel();
         auto libs = config.getLibraries();
         removeStaleWindows(libs);
         createWindows(libs);
@@ -224,6 +228,7 @@ int main(int argc, char *argv[])
         if (tmpDlg.exec() == QDialog::Accepted)
         {
             config.loadSettings();
+            applyLogLevel();
             libs = config.getLibraries();
         }
     }

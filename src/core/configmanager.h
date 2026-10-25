@@ -81,6 +81,9 @@ public:
     void setSearchDelayMs(int v);
     int getThumbnailCacheSize() const;
     void setThumbnailCacheSize(int v);
+    // 日志级别："" = 未设置（按构建类型推导），否则 "Debug"/"Info"/"Warning"/"Critical"/"Fatal"
+    QString getLogLevel() const;
+    void setLogLevel(const QString &v);
 
     // Effective per-library
     QSize getEffectiveWindowSize(const LibraryConfig &lib) const;

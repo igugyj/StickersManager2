@@ -3,6 +3,7 @@
 #include "updatechecker.h"
 #include "appinfo.h"
 #include "launcher.hpp"
+#include "log.hpp"
 
 #include <QComboBox>
 #include <QFormLayout>
@@ -109,6 +110,29 @@ BaseSettingsPage::BaseSettingsPage(ConfigManager *config, QWidget *parent)
     perfForm->addRow("Search Delay:", m_searchDelayMs);
     perfForm->addRow("Thumbnail Cache Size:", m_thumbnailCacheSize);
     contentLayout->addWidget(perfGroup);
+
+    // --- Logging ---
+    auto *logGroup = new QGroupBox("Logging");
+    auto *logForm = new QFormLayout(logGroup);
+    m_logLevel = new QComboBox(this);
+    m_logLevel->addItem("Debug", "Debug");
+    m_logLevel->addItem("Info", "Info");
+    m_logLevel->addItem("Warning", "Warning");
+    m_logLevel->addItem("Critical", "Critical");
+    m_logLevel->addItem("Fatal", "Fatal");
+    m_logLevel->setToolTip(
+        "Default: Debug for Debug builds, Warning for Release builds.");
+    // 显示实际生效级别：settings.json 存了就用它，没存按构建类型推导
+    const QString currentLevel = logLevelToString(
+        logLevelFromString(config->getLogLevel(), defaultLogLevel()));
+    for (int i = 0; i < m_logLevel->count(); ++i) {
+        if (m_logLevel->itemData(i).toString() == currentLevel) {
+            m_logLevel->setCurrentIndex(i);
+            break;
+        }
+    }
+    logForm->addRow("Log Level:", m_logLevel);
+    contentLayout->addWidget(logGroup);
 
     // --- Startup ---
     auto *startupGroup = new QGroupBox("Startup");
@@ -262,6 +286,11 @@ void BaseSettingsPage::applyToConfig() {
     m_config->setDoubleClickTarget(val);
     m_config->setSearchDelayMs(m_searchDelayMs->value());
     m_config->setThumbnailCacheSize(m_thumbnailCacheSize->value());
+    // 与构建类型默认一致时不落盘，保持"默认跟随构建类型"的语义
+    QString level = m_logLevel->currentData().toString();
+    if (level == logLevelToString(defaultLogLevel()))
+        level.clear();
+    m_config->setLogLevel(level);
     m_config->setCheckForUpdatesOnStartup(m_checkOnStartup->isChecked());
     bool nextStartup = m_startWithWindows->isChecked();
     if (nextStartup != m_config->getStartWithWindows())

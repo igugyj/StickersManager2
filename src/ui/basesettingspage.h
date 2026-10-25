@@ -24,6 +24,7 @@ private:
     QComboBox *m_doubleClickTarget;
     QSpinBox *m_searchDelayMs;
     QSpinBox *m_thumbnailCacheSize;
+    QComboBox *m_logLevel;
     QCheckBox *m_checkOnStartup;
     QCheckBox *m_startWithWindows;
     QLabel *m_checkStatus;
