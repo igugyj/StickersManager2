@@ -11,7 +11,7 @@
 | `src/core/globalinputlistener.h/.cpp` | Win32 `SetWindowsHookEx(WH_KEYBOARD_LL)` 监听、start/stop |
 | `src/core/convertcodetostring.cpp/.hpp` | 键码↔字符串映射、`ShortcutCompare::compareShortcutKeys`（:hpp） |
 | `src/ui/hotkeycapture.cpp` | 设置页按键捕获 |
-| `src/main.cpp` | `rebuildHotkeyMapping`、keyReleased 分发（设置热键优先）、`applySettingsHotkey`/`syncHotkeyListener` |
+| `src/ui/appcontroller.cpp` | `rebuildHotkeyMapping`、`onGlobalKeyReleased` 分发（设置热键优先）、`applySettingsHotkey`/`syncHotkeyListener`（#3 重构后由 main.cpp 外移） |
 
 ## 数据流
 
@@ -27,7 +27,7 @@ settings.json → applySettingsHotkey → settingsHotkey/enabled 状态（每次
 ## 依赖关系
 
 - 依赖：Win32 API、convertcodetostring.hpp
-- 被依赖：main.cpp（唯一使用者）
+- 被依赖：AppController（appcontroller.cpp，唯一使用者）
 
 ## 关键规则
 

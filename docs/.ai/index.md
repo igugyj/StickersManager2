@@ -8,7 +8,7 @@
 4. 两条运行时重载路径不可混淆：`fullReload`（托盘 Rescan，重建窗口+重扫库） vs `applyChanges`（设置 applied 信号，只更新配置不重扫）
 5. 任务完成后必须：清冗余 + 更新对应文档 + 写 changelog
 
-## 当前变更快照（2026-10-25，四次会话任务）
+## 当前变更快照（2026-10-25，六次会话任务）
 
 > 详细条目见 [changelog.md](./changelog.md) 顶部；待办规划见根目录 `TODO`
 
@@ -21,7 +21,7 @@
    - `log.hpp` 拆为声明 + `log.cpp` 实现：`extern` 单例 + 锁（消除 per-TU `static` 副本隐患）
    - 控制台中文乱码根治：`WriteConsoleW` 直写 UTF-16（绕开代码页），重定向时回退 UTF-8 → `stderr`
    - `messageHandler` **始终安装**（控制台+文件双写）；删除 `DEBUG_MODE` 宏
-   - 分级日志：`defaultLogLevel()` 按构建类型（Debug 构建=Debug、Release=Warning）；`settings.json` 新增 `logLevel`；Base 页新增 Logging/Log Level 下拉（显示实际生效级别，无 Auto 项，等于构建默认时不落盘）；`main.cpp` 4 处 `applyLogLevel()`；新增中文启动日志行
+   - 分级日志：`defaultLogLevel()` 按构建类型（Debug 构建=Debug、Release=Warning）；`settings.json` 新增 `logLevel`；Base 页新增 Logging/Log Level 下拉（显示实际生效级别，无 Auto 项，等于构建默认时不落盘）；`applyLogLevel()` 4 处（#3 重构后位于 `appcontroller.cpp`）；新增中文启动日志行
    - **`settings.json` 结构变了**：多了可选键 `logLevel`（`config/settings-json.md` 已同步）
 3. **Qt 路径去硬编码 → `.vscode`**（参照 Pelr）
    - `CMakeLists.txt:37-44`：`QT_PATH` 默认空 + `if (QT_PATH)` 守卫 + `Qt lookup:` 日志；优先级 `-DQT_PATH`（CI）> `.vscode/settings.json` configureArgs > 系统查找
@@ -29,13 +29,27 @@
 4. **全局设置热键 Ctrl+I**
    - `settings.json` 新增 `openSettingsHotkey`（默认 `"Ctrl+I"`）/ `openSettingsHotkeyEnabled`（默认 `true`），单源 `defaultSettings()`
    - Base 页 Hotkey 分组（Enable 开关 + `HotkeyCaptureButton` 录制），与库热键同一套 `WH_KEYBOARD_LL` 检测系统
-   - `main.cpp`：`applySettingsHotkey()` 联动监听启停（启动条件含「设置热键启用」），`keyReleased` 设置热键优先命中 + toggle；录制期/首启模态期抑制；冲突双向标红（切页重算）
+   - `AppController`（#3 重构后位于 `appcontroller.cpp`）：`applySettingsHotkey()` 联动监听启停（启动条件含「设置热键启用」），`keyReleased` 设置热键优先命中 + toggle；录制期/首启模态期抑制；冲突双向标红（切页重算）
    - 运行验证通过（开/关、改键、禁用回落）
 5. **内存优化：窗口隐藏即释放**（先量化）
    - 量化埋点：`ThumbnailCache::stats()`、`pixmapBytes()/isAnimationLoaded()`、`[mem]` Info 日志（hide/show）
    - 数据：大头是 GIF `QMovie`（整文件 QBuffer + 解码帧，单部 1.2~2.1MB），非缩略图缓存；GIF 类目显示 105.7MB → 旧版隐藏 150.2MB 不回落
    - 实施（温和策略）：`hideEvent` → 全 cell `setInViewport(false)` 卸 GIF + `ThumbnailCache::clear()`；`showEvent` → `updateCellVisibility()` 恢复；cell 保留 pixmap 零闪烁
    - 验收：105.7 → **35.2MB（−67%）**，重开 +6s 恢复 104.7MB；激进 `clearStickerCells()` 经数据否决（仅多 0.85MB）
+6. **#2 GIF 首屏复核 + #4 版本号一致性校验**
+   - GIF 首屏：**实测为非 bug**（点进 GIF 类目不滚动 12s → `movies=9`，走 `stickercell.cpp:93` 既有路径）；上轮"首屏不播"是类目无 GIF 的混淆变量，`AGENTS.md`/changelog 已更正；`hideEvent` 新增释放前 `logMemoryState("hidden")` 对照日志
+   - 新增 `scripts/check_version.ps1`：CHANGELOG 顶部**仍为单源**（B 方案），比对 `appinfo.h`（剥 v）与 `pkg.iss`（剥 v），不一致即 throw；stdout 仅 `version=`/`tag=` 两行，状态行走 stderr（防污染 `$GITHUB_OUTPUT`）
+   - 接入 `make_release_notes.ps1`（开头调用）与 `release.yml`（原 Parse 步骤替换，step id 不变 → 后续 7z/ISCC/tag/release 零改动）
+   - 验证：正向三处 2.8.0 通过；反向 3 个篡改场景均按预期报错且文件还原；管道输出仅 2 行；YAML 语法通过（CI 端无法本地跑 Actions，属已知局限）
+7. **#3 精简 main.cpp → AppController（重构）**
+   - 新建 `src/ui/appcontroller.h/.cpp`：main() 全部 lambda/闭包收编为成员函数（窗口管理、全局热键、设置对话框、托盘接线、两条重载路径）；`main.cpp` 378 → **43 行**启动骨架
+   - 顺带消除 `std::function toggleSettings` 前置声明技巧与死代码 `firstWindow`（只写不读）；`checkupdate.hpp` 补自包含 include（appinfo.h/tray.h）
+   - 顺序红线逐条保持：首启模态先于托盘/窗口、`applyLogLevel` 4 处、`applySettingsHotkey` 4 处、`fullReload`≠`applyChanges`、`keyReleased` 三段顺序
+   - 自动化验收 10/10（热键开/关窗、Ctrl+I 开/关、启动日志行、`3 hotkeys`、首启模态模拟且配置 hash 还原一致）；`AGENTS.md` + `docs/.ai` 15+ 处 `main.cpp:N` 行号引用迁至 `appcontroller.cpp`
+8. **修复隐藏后 private bytes 不回落 784MB（QMovie 环泄漏）**
+   - 根因：`~StickerCell()` 只 `m_movie->stop()` 不 `delete`，而 m_movie↔QBuffer 互为 parent（环）且不挂 cell → 切类目 `clearStickerCells()`/滚动剪枝 `delete cell` 整环泄漏
+   - 先量化：`mCreated/mDestroyed` 原子计数 + `privMB/wsMB` + hide 后 decay 采样；实验 C 5 轮 = priv 线性 +60MB/轮（→341.7）、隐藏 315 平线、**leaked=96**
+   - 修复：析构改走 `unloadAnimation()`；验收 **leaked=0、浏览稳定 ~64MB、隐藏回落 34MB**（同脚本 A/B 对照）
 
 ## 项目类型
 
@@ -107,6 +121,6 @@ Windows 桌面贴纸管理器，C++20 + Qt 6.10.1（Widgets），MinGW 构建，
 - 发布：`pkg.iss`（Inno Setup）、`release/`、`scripts/clean_release.py`
 - 资源：`assets/`（st.ico、st.png、menu.qss、icon.rc）
 - 第三方：`thirdparty/stb/`（stb_image.h、stb_image_resize2.h）
-- 版本：`src/appinfo.h:7`（当前 2.7.1）
+- 版本：`src/appinfo.h:7`（当前 `v2.8.0`，带 `v` 前缀；与 `CHANGELOG.md` 顶部、`pkg.iss` 三处须一致，`scripts/check_version.ps1` 强制校验）
 - 运行时配置：`[EXE_DIR]/.stickersmanager/`（config.json、settings.json、recent_*.json）
 - 日志：`log/log.log`（相对工作目录）

@@ -19,14 +19,14 @@
 
 ```
 托盘双点/菜单 → showSettings(toggle) → QPointer 检查 → new SettingsDialog(&config, true)
-Save & Reload → 各页 apply → saveConfig() + saveSettings() → emit applied → applyChanges（main.cpp:146）
+Save & Reload → 各页 apply → saveConfig() + saveSettings() → emit applied → applyChanges（appcontroller.cpp:191）
 Base 页 show → 刷新双击目标下拉 + 重算设置热键冲突；Libraries 页 show → 重算库热键冲突（settingsdialog.cpp:40-52，双向标红）
 ```
 
 ## 依赖关系
 
 - 依赖：ConfigManager、四个设置页、settingswidgets.h
-- 被依赖：main.cpp（showSettings、首启模态 tmpDlg）
+- 被依赖：AppController（appcontroller.cpp `showSettings`、首启模态 tmpDlg）
 
 ## 关键规则
 

@@ -11,8 +11,8 @@
 # 1. 组装 release/（含 README.md + LICENSE 副本）
 # 2. 清构建残留
 python scripts/clean_release.py
-# 3. 编译安装包（版本号硬编码示例）
-"D:\Program Files\Inno Setup 7\ISCC.exe" /DMyAppVersion=2.7.1 pkg.iss
+# 3. 编译安装包（版本以 CHANGELOG.md 顶部为单源，check_version.ps1 会校验 pkg.iss/appinfo.h 一致）
+"D:\Program Files\Inno Setup 7\ISCC.exe" /DMyAppVersion=2.8.0 pkg.iss
 ```
 
 - pkg.iss 内路径**相对脚本目录**：LICENSE、README.md、assets/st.ico，OutputDir=.
@@ -29,15 +29,15 @@ python scripts/clean_release.py
   - Configure/Build 步骤 PATH 前置 `$env:QT_ROOT_DIR\bin` + mingw bin（windeployqt 需要 objdump）
   - "Assemble Release directory" 步骤：滤掉 CMakeCache/cmake_install/Makefile/CMakeFiles，其余移入 `build/Release/`（上传路径保持 build/Release）
   - 7z portable + Inno 安装包 + release notes
-- 版本单源：`CHANGELOG.md` 顶部 `# Changelog — vA → vB`；`scripts/make_release_notes.ps1` 解析生成 release_notes.md
+- 版本单源：`CHANGELOG.md` 顶部 `# Changelog — vA → vB`；`scripts/check_version.ps1` 校验 `src/appinfo.h` 与 `pkg.iss` 与之一致（不一致即 throw）并输出 `version=`/`tag=`；CI "Check & parse version" 步骤与 `make_release_notes.ps1` 都调用它；`scripts/make_release_notes.ps1` 据 CHANGELOG 生成 release_notes.md
 - 安装包：CI 用 `choco install innosetup`，ISCC.exe 动态定位（PATH → Program Files (x86)/Inno Setup 6 → Program Files/Inno Setup 6 → Program Files/Inno Setup 7）
 - 自动打 tag `vX.Y.Z`，传 GitHub Release
 
 ## 版本流程
 
-1. `src/appinfo.h:7` 手动 bump 版本号
-2. `CHANGELOG.md` 顶部加版本段（含日期，缺则用今天）
-3. CI dispatch 或本地 iscc 打包
+1. `CHANGELOG.md` 顶部改版本段 `# Changelog — vA → vB (yyyy-mm-dd)`（**单源**）
+2. 同步 `src/appinfo.h:7`（`"vX.Y.Z"` 带 v）与 `pkg.iss` `MyAppVersion`（不带 v）—— 不同步会被 `scripts/check_version.ps1` 拦下
+3. 跑 `scripts/make_release_notes.ps1`（内含校验）→ CI dispatch 或本地 iscc 打包
 4. 产物 gitignored，不提交
 
 ## 违例与后果

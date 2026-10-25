@@ -19,6 +19,13 @@
 #include "imageloader.h"
 #include "fsutil.hpp"
 #include "labeltagst.hpp"
+#include <atomic>
+
+// QMovie 创建/销毁计数（[mem] 埋点）：created − destroyed > 0 ⇒ 有动画对象泄漏
+static std::atomic<int> g_moviesCreated{0};
+static std::atomic<int> g_moviesDestroyed{0};
+int animationMoviesCreated() { return g_moviesCreated.load(); }
+int animationMoviesDestroyed() { return g_moviesDestroyed.load(); }
 
 StickerCell::StickerCell(const QString &filePath, int cellSize, QWidget *parent)
     : QFrame(parent)
@@ -69,12 +76,13 @@ StickerCell::StickerCell(const QString &filePath, int cellSize, QWidget *parent)
 }
 
 StickerCell::~StickerCell() {
-    if (m_animWatcher) {
-        m_animWatcher->cancel();
-    }
-    if (m_movie) {
-        m_movie->stop();
-    }
+    // 关键修复（2026-10-25 隐藏后 private bytes 不回落排查）：必须走 unloadAnimation()
+    // 完整删除。此前只 m_movie->stop() —— m_movie 与 QBuffer 互为 parent（环）且不挂在
+    // cell 下，cell 被 delete（滚动剪枝 / clearStickerCells 切类目）即整环泄漏
+    // （QMovie + 整个 GIF 文件 QBuffer + 解码器，实测每轮切类目线性 +60MB，
+    // 5 轮 leaked=96 且隐藏后 priv 平线不回落）。unloadAnimation 里的 delete m_movie
+    // 会连带析构其 child QBuffer，断开环。
+    unloadAnimation();
 }
 
 void StickerCell::setThumbnail(const QPixmap &pixmap) {
@@ -129,6 +137,7 @@ void StickerCell::loadAnimation() {
         auto *buffer = new QBuffer();
         buffer->setData(data);
         m_movie = new QMovie(buffer);
+        ++g_moviesCreated;
         // 默认 CacheNone — 只保留当前帧，不缓存全部帧到内存
         buffer->setParent(m_movie);
         connect(m_movie, &QMovie::frameChanged, this, [this](int) {
@@ -159,6 +168,7 @@ void StickerCell::unloadAnimation() {
         m_movie->stop();
         delete m_movie;
         m_movie = nullptr;
+        ++g_moviesDestroyed;
     }
 }
 

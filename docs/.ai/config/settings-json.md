@@ -20,8 +20,8 @@
 ## 修改注意
 
 - 默认值单源：`defaultSettings()`（configmanager.cpp:58），getter 无 fallback 参数
-- `doubleClickTarget` 匹配顺序（main.cpp:230-272）：`"settings"` → `"first-library"`/空 → 库 id → 旧版目录名（QFileInfo::fileName）
-- 读走 `loadSettings()`（main.cpp 两条重载路径都先 loadSettings）
+- `doubleClickTarget` 匹配顺序（appcontroller.cpp `onTrayActivated`，:280-341）：`"settings"` → `"first-library"`/空 → 库 id → 旧版目录名（QFileInfo::fileName）
+- 读走 `loadSettings()`（AppController 两条重载路径都先 loadSettings，appcontroller.cpp）
 - 无自动保存：Settings "Save & Reload" 才写盘
 
 ## 环境变量

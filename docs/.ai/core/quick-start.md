@@ -29,7 +29,7 @@ cmake .. -DQT_PATH=D:/Qt/6.10.1/mingw_64
 | `cmake .. -DCONSOLE=ON` | 切控制台模式（WIN32_EXECUTABLE FALSE + LOG_TO_CONSOLE） |
 | `cmake ..`（改源码清单后） | 重新配置以纳入新 globbed 文件 |
 | `scripts/clean_release.py` | 清 release/ 构建残留（本地手工打包用） |
-| `iscc /DMyAppVersion=2.7.1 pkg.iss` | 本地打安装包（Inno Setup） |
+| `iscc /DMyAppVersion=2.8.0 pkg.iss` | 本地打安装包（版本以 CHANGELOG 顶部为单源，`check_version.ps1` 校验一致性） |
 
 ## 开发流程
 

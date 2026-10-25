@@ -7,8 +7,27 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QScrollBar>
+#include <QTimer>
+#include <windows.h>
+#include <psapi.h>
 #include "tray.h"
 #include "custommenu.h"
+
+// 进程 private bytes / working set（[mem] 埋点：字节层是否真的回落）
+static void processMemoryUsage(qint64 *privateBytes, qint64 *workingSet)
+{
+    PROCESS_MEMORY_COUNTERS_EX pmc{};
+    if (GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS *>(&pmc), sizeof(pmc)))
+    {
+        *privateBytes = static_cast<qint64>(pmc.PrivateUsage);
+        *workingSet = static_cast<qint64>(pmc.WorkingSetSize);
+    }
+    else
+    {
+        *privateBytes = 0;
+        *workingSet = 0;
+    }
+}
 
 static const QString kRecentCategoryName = "Recent";
 
@@ -424,6 +443,8 @@ void MainWindow::closeEvent(QCloseEvent *event) {
 
 void MainWindow::hideEvent(QHideEvent *event) {
     QMainWindow::hideEvent(event);
+    // 先记录释放前状态（movies 计数是 GIF 首屏播放的实证），再释放
+    logMemoryState("hidden");
     // 隐藏即释放（量化见 docs/.ai/changelog [2026-10-25]）：GIF QMovie 是后台内存大头
     // （整文件字节 + 解码帧，实测 GIF 类目隐藏后 150MB 不回落），逐 cell 卸动画复用
     // scroll-out 路径；同时清空缩略图 LRU。cell 保留当前 pixmap → 重开零闪烁。
@@ -432,6 +453,13 @@ void MainWindow::hideEvent(QHideEvent *event) {
     if (m_thumbnailCache)
         m_thumbnailCache->clear();
     logMemoryState("hidden-released");
+    // decay 采样：判 private bytes 是"缓慢回落"（分配器滞留/碎片）还是"钉死"（真泄漏）
+    for (int sec : {1, 5, 15, 60}) {
+        QTimer::singleShot(sec * 1000, this, [this, sec]() {
+            if (!isVisible())
+                logMemoryState(qPrintable(QString("decay+%1s").arg(sec)));
+        });
+    }
 }
 
 void MainWindow::showEvent(QShowEvent *event) {
@@ -457,6 +485,8 @@ void MainWindow::logMemoryState(const char *reason) {
     const auto catButtons = m_categoryButtons.keys();
     for (auto *btn : catButtons)
         catBytes += btn->pixmapBytes();
+    qint64 priv = 0, ws = 0;
+    processMemoryUsage(&priv, &ws);
     qInfo() << "[mem]" << reason
             << "lib=" << QFileInfo(m_libConfig.path).fileName()
             << "cells=" << m_cellMap.size()
@@ -465,7 +495,11 @@ void MainWindow::logMemoryState(const char *reason) {
             << "catBtn=" << m_categoryButtons.size()
             << "catPixKB=" << catBytes / 1024
             << "cache=" << st.count << "/" << m_thumbnailCache->maxSize()
-            << "cachePixKB=" << st.bytes / 1024;
+            << "cachePixKB=" << st.bytes / 1024
+            << "mCreated=" << animationMoviesCreated()
+            << "mDestroyed=" << animationMoviesDestroyed()
+            << "privMB=" << priv / (1024 * 1024)
+            << "wsMB=" << ws / (1024 * 1024);
 }
 
 void MainWindow::reloadLibrary() {

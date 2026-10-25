@@ -4,6 +4,9 @@ $Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $ChangelogPath = Join-Path $Root "CHANGELOG.md"
 $OutPath = Join-Path $Root "release_notes.md"
 
+# 版本一致性校验：CHANGELOG 顶部为单源，appinfo.h / pkg.iss 必须一致，不一致直接终止
+$null = & (Join-Path $PSScriptRoot "check_version.ps1")
+
 $raw = Get-Content $ChangelogPath -Raw -Encoding utf8
 
 $match = [regex]::Match($raw, '(?m)^# Changelog[^\n]*?v?([\d.]+)\s*→\s*v?([\d.]+)(?:\s*\((\d{4}\.\d{2}\.\d{2})\))?')

@@ -65,16 +65,12 @@ jobs:
       - name: Add docs to payload
         shell: pwsh
         run: Copy-Item README.md, LICENSE release/
-      - name: Parse version from CHANGELOG
+      - name: Check & parse version
         id: version
         shell: pwsh
-        run: |
-          $raw = Get-Content CHANGELOG.md -Raw
-          $m = [regex]::Match($raw, '(?m)^# Changelog[^\n]*?→\s*v?([\d.]+)')
-          if (-not $m.Success) { throw "Cannot parse version from CHANGELOG.md" }
-          $v = $m.Groups[1].Value
-          "version=$v" | Out-File $env:GITHUB_OUTPUT -Append
-          "tag=v$v" | Out-File $env:GITHUB_OUTPUT -Append
+        # CHANGELOG.md 顶部为版本单源；check_version.ps1 校验 src/appinfo.h 与 pkg.iss
+        # 一致（不一致即失败），并输出 version=/tag= 供后续 7z/ISCC/tag/release 使用
+        run: .\scripts\check_version.ps1 | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
       - name: 7z portable package
         shell: pwsh
         run: 7z a "StickersManager_${{ steps.version.outputs.version }}.7z" ".\release\*"
