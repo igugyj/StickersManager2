@@ -4,10 +4,12 @@
 ```bash
 cd build && cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Debug && cmake --build . -- -j8
 ```
-- Qt 6.10.1 MinGW, `QT_PATH` cache variable default `D:/Qt/6.10.1/mingw_64` (`CMakeLists.txt:13-14`), overridable via `-DQT_PATH=...` (CI: `-DQT_PATH=${{ env.Qt6_DIR }}`); `CMAKE_PREFIX_PATH` set from it, windeployqt POST_BUILD follows it
-- `CMakeLists.txt` links `Qt6::Core Gui Widgets Concurrent Network`; new source files need re-run `cmake ..` to be picked up (`FILE(GLOB_RECURSE ./src/)` for `.cpp/.h/.hpp`)
-- `CONSOLE` is a **plain variable** (`CMakeLists.txt:5`, source = switch, default OFF): ON → console window (`WIN32_EXECUTABLE FALSE`) + `add_compile_definitions(CONSOLE)` (activates `LOG_TO_CONSOLE` in `log.hpp`) + `DEBUG_MODE` follows it in `main.cpp:24-28` (true = no `messageHandler`, qDebug to console); subsystem is set once via target property, no `WIN32` flag duplication. C++20, `UNICODE`/`_UNICODE` defined
-- `windeployqt` auto-deploy runs POST_BUILD on every build (`CMakeLists.txt:103-113`); C++20, `UNICODE`/`_UNICODE` defined
+- Qt 6.10.1 MinGW, `QT_PATH` cache variable default `D:/Qt/6.10.1/mingw_64` (`CMakeLists.txt:37-38`), overridable via `-DQT_PATH=...` (CI: `-DQT_PATH=${{ env.Qt6_DIR }}`); `CMAKE_PREFIX_PATH` set from it, windeployqt POST_BUILD follows it
+- `CMakeLists.txt` links `Qt6::Core Gui Widgets Concurrent Network`; new source files need re-run `cmake ..` to be picked up (`FILE(GLOB_RECURSE ./src/)` for `.cpp/.h/.hpp`); `cmake_minimum_required(3.16)`
+- Configure prints `message(STATUS)` lines: `CMAKE_BUILD_TYPE` (defaults to **Debug** when unset, `CMakeLists.txt:5-10`) + compiler id/version; UTF-8 charset flags by compiler (`CMakeLists.txt:46-50`): GNU → `-finput-charset=UTF-8 -fexec-charset=UTF-8`, MSVC → `/utf-8`
+- `CONSOLE` is **derived from build type when not passed** (`CMakeLists.txt:16-26`): Release → OFF, anything else → ON; override with `-DCONSOLE=ON/OFF`. ON → console window (`WIN32_EXECUTABLE FALSE`) + `add_compile_definitions(CONSOLE)` (activates `LOG_TO_CONSOLE` in `log.hpp`) + `DEBUG_MODE` follows it in `main.cpp:24-28` (true = no `messageHandler`, qDebug to console); subsystem is set once via target property, no `WIN32` flag duplication. C++20, `UNICODE`/`_UNICODE` defined
+- `SM_TEST_BUILD` defined only for **Debug** config (`$<$<CONFIG:Debug>:SM_TEST_BUILD>`, `CMakeLists.txt:35`) — drives the debug lock-file name (see Single instance)
+- `windeployqt` auto-deploy runs POST_BUILD on every build (`CMakeLists.txt:123-133`); C++20, `UNICODE`/`_UNICODE` defined
 
 ## CI / Release (`.github/workflows/release.yml`)
 - Manual `workflow_dispatch` → builds Release with **MinGW** (Qt 6.10.1 `win64_mingw` via `jurplel/install-qt-action@v4` with **Qt-bundled** toolchain `tools: 'tools_mingw1310,qt.tools.win64_mingw1310'` — MinGW 13.1.0, must match the Qt package's ABI; `add-tools-to-path` (default on) puts `Tools\mingw1310_64\bin` on PATH, Configure/Build prepend `$env:QT_ROOT_DIR\bin` (the action's Qt-root env var, **not** `Qt6_DIR` which v4.3.1 no longer sets); `-G "MinGW Makefiles"` single-config), then packages: 7z portable + **Inno Setup** installer + release notes, auto-creates tag `vX.Y.Z`, uploads GitHub Release
@@ -18,7 +20,7 @@ cd build && cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Debug && cmake --bu
 - `pkg.iss` also used for the **local manual** flow (iscc with default `#define MyAppVersion "2.7.1"` — e.g. `D:\Program Files\Inno Setup 7\ISCC.exe /DMyAppVersion=2.7.1 pkg.iss`)
 
 ## Architecture
-- **Single instance**: `QLockFile` at `%TEMP%/<user>_Stickers Manager.lock` (`main.cpp:48`)
+- **Single instance**: `QLockFile` at `%TEMP%/<user>_Stickers Manager.lock` (Release, unchanged) or `%TEMP%/<user>_Stickers Manager_debug.lock` (Debug build, `SM_TEST_BUILD` → `main.cpp:44-48`) — debug and installed release can run side by side (`main.cpp:49`)
 - **Config** (`[EXE_DIR]/.stickersmanager/`, relative to exe):
   - `config.json`: `{"default":{ui,behavior,window,performance},"libraries":[{id,path,hotkey,enabled,settings:{}}]}` — no version field; `id` is the **order marker** (0..n-1, contiguous): `getLibraries()` sorts by id (`configmanager.cpp:196-217`), missing ids (legacy) get array position, drag-reorder in the Libraries tab renumbers ids; `enabled` = **hotkey switch only** ("Enable Hotkey" checkbox) — does NOT affect window/tray/menu/double-click target/storage stats, only global-hotkey registration and hotkey-conflict computation
   - `settings.json`: `doubleClickTarget` (default `"settings"`; `"first-library"`/library id string; legacy dirName/path values still matched as fallback, `main.cpp:236-264`), `searchDelayMs` (300), `thumbnailCacheSize` (200), `checkForUpdatesOnStartup` (true), `startWithWindows` (false)

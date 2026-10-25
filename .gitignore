@@ -8,7 +8,7 @@ StickersManager
 release/
 release_notes.md
 *.exe
-
+docs/structure
 *.7z
 *.zip
 *.rar

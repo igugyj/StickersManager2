@@ -39,7 +39,14 @@ int main(int argc, char *argv[])
     app.setWindowIcon(QIcon(":/assets/st.png"));
     QString userName = QFileInfo(QStandardPaths::writableLocation(QStandardPaths::HomeLocation)).fileName();
     userName = !userName.isEmpty() ? userName : "unknown";
-    QLockFile lockFile(QDir::temp().absoluteFilePath(QString("%1_%2.lock").arg(userName).arg(app.applicationName())));
+    // 测试版（Debug 构建，CMake 注入 SM_TEST_BUILD）用独立锁名，可与正式版同时运行；
+    // Release 构建锁名保持不变
+#ifdef SM_TEST_BUILD
+    QString lockName = QString("%1_%2_debug.lock").arg(userName).arg(app.applicationName());
+#else
+    QString lockName = QString("%1_%2.lock").arg(userName).arg(app.applicationName());
+#endif
+    QLockFile lockFile(QDir::temp().absoluteFilePath(lockName));
 
     if (!lockFile.tryLock(100))
     {
