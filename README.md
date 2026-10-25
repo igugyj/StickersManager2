@@ -12,7 +12,7 @@ StickersManager
 
 StickersManager is a Windows sticker management tool built with C++20 and Qt 6.10.1. It manages sticker packs from local folders.
 
-![Demo](https://github.com/user-attachments/assets/d2b5bd03-7ba1-4f4e-9c14-c9a01cbb2302)
+![Demo](screenshots/image.png)
 
 ## Features
 
@@ -98,6 +98,11 @@ Requires Qt 6.10 and a C++20 toolchain (MinGW 13.1 or MSVC).
 
 - [Qt 6.10.1](https://www.qt.io/)
 - [stb_image](https://github.com/nothings/stb)
+
+## Acknowledgements
+
+- [Android.EweSticker](https://github.com/FredHappyface/Android.EweSticker) — data structure reference for organizing sticker libraries
+- [MemeManager](https://github.com/shuiping233/MemeManager) — inspired the low-memory design (unload off-screen animations, release memory on hide) and keyboard shortcut support
 
 ## License
 
