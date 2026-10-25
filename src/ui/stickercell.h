@@ -19,6 +19,14 @@ public:
 
     QString getFilePath() const { return m_filePath; }
 
+    // 内存量化埋点：当前缩略图像素字节 + GIF 动画是否驻留（hide/show 日志用）
+    qint64 pixmapBytes() const {
+        return m_currentPixmap.isNull()
+                   ? 0
+                   : qint64(m_currentPixmap.width()) * m_currentPixmap.height() * m_currentPixmap.depth() / 8;
+    }
+    bool isAnimationLoaded() const { return m_movie != nullptr; }
+
     void setThumbnail(const QPixmap &pixmap);
 
     void clearHighlight();

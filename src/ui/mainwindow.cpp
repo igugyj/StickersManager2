@@ -422,6 +422,52 @@ void MainWindow::closeEvent(QCloseEvent *event) {
     event->ignore();
 }
 
+void MainWindow::hideEvent(QHideEvent *event) {
+    QMainWindow::hideEvent(event);
+    // 隐藏即释放（量化见 docs/.ai/changelog [2026-10-25]）：GIF QMovie 是后台内存大头
+    // （整文件字节 + 解码帧，实测 GIF 类目隐藏后 150MB 不回落），逐 cell 卸动画复用
+    // scroll-out 路径；同时清空缩略图 LRU。cell 保留当前 pixmap → 重开零闪烁。
+    for (auto *cell : std::as_const(m_cellMap))
+        cell->setInViewport(false);
+    if (m_thumbnailCache)
+        m_thumbnailCache->clear();
+    logMemoryState("hidden-released");
+}
+
+void MainWindow::showEvent(QShowEvent *event) {
+    QMainWindow::showEvent(event);
+    // 恢复视口内 cell 的动画加载（hide 时被置为 out-of-viewport）
+    updateCellVisibility();
+    logMemoryState("shown");
+}
+
+// 内存量化埋点：hide/show 时输出本窗口驻留明细（缩略图缓存、单元格 pixmap、GIF movie）
+void MainWindow::logMemoryState(const char *reason) {
+    if (!m_thumbnailCache)
+        return;
+    const auto st = m_thumbnailCache->stats();
+    qint64 cellBytes = 0;
+    int movies = 0;
+    for (auto *cell : std::as_const(m_cellMap)) {
+        cellBytes += cell->pixmapBytes();
+        if (cell->isAnimationLoaded())
+            ++movies;
+    }
+    qint64 catBytes = 0;
+    const auto catButtons = m_categoryButtons.keys();
+    for (auto *btn : catButtons)
+        catBytes += btn->pixmapBytes();
+    qInfo() << "[mem]" << reason
+            << "lib=" << QFileInfo(m_libConfig.path).fileName()
+            << "cells=" << m_cellMap.size()
+            << "cellPixKB=" << cellBytes / 1024
+            << "movies=" << movies
+            << "catBtn=" << m_categoryButtons.size()
+            << "catPixKB=" << catBytes / 1024
+            << "cache=" << st.count << "/" << m_thumbnailCache->maxSize()
+            << "cachePixKB=" << st.bytes / 1024;
+}
+
 void MainWindow::reloadLibrary() {
     qDebug() << "Reloading library...";
     if (m_library) {

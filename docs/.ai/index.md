@@ -8,7 +8,7 @@
 4. 两条运行时重载路径不可混淆：`fullReload`（托盘 Rescan，重建窗口+重扫库） vs `applyChanges`（设置 applied 信号，只更新配置不重扫）
 5. 任务完成后必须：清冗余 + 更新对应文档 + 写 changelog
 
-## 当前变更快照（2026-10-25，三次会话任务）
+## 当前变更快照（2026-10-25，四次会话任务）
 
 > 详细条目见 [changelog.md](./changelog.md) 顶部；待办规划见根目录 `TODO`
 
@@ -22,10 +22,20 @@
    - 控制台中文乱码根治：`WriteConsoleW` 直写 UTF-16（绕开代码页），重定向时回退 UTF-8 → `stderr`
    - `messageHandler` **始终安装**（控制台+文件双写）；删除 `DEBUG_MODE` 宏
    - 分级日志：`defaultLogLevel()` 按构建类型（Debug 构建=Debug、Release=Warning）；`settings.json` 新增 `logLevel`；Base 页新增 Logging/Log Level 下拉（显示实际生效级别，无 Auto 项，等于构建默认时不落盘）；`main.cpp` 4 处 `applyLogLevel()`；新增中文启动日志行
-   - **`settings.json` 结构变了**：多了可选键 `logLevel`（`config/settings-json.md` 需同步）
+   - **`settings.json` 结构变了**：多了可选键 `logLevel`（`config/settings-json.md` 已同步）
 3. **Qt 路径去硬编码 → `.vscode`**（参照 Pelr）
    - `CMakeLists.txt:37-44`：`QT_PATH` 默认空 + `if (QT_PATH)` 守卫 + `Qt lookup:` 日志；优先级 `-DQT_PATH`（CI）> `.vscode/settings.json` configureArgs > 系统查找
    - 新建 `.vscode/settings.json`（**gitignored 本地文件**）：`cmake.buildDirectory` 平铺 `build/`、`cmake.configureArgs` 注入 `-DCMAKE_PREFIX_PATH`；需 VSCode **CMake Tools** 扩展（本机尚未安装）
+4. **全局设置热键 Ctrl+I**
+   - `settings.json` 新增 `openSettingsHotkey`（默认 `"Ctrl+I"`）/ `openSettingsHotkeyEnabled`（默认 `true`），单源 `defaultSettings()`
+   - Base 页 Hotkey 分组（Enable 开关 + `HotkeyCaptureButton` 录制），与库热键同一套 `WH_KEYBOARD_LL` 检测系统
+   - `main.cpp`：`applySettingsHotkey()` 联动监听启停（启动条件含「设置热键启用」），`keyReleased` 设置热键优先命中 + toggle；录制期/首启模态期抑制；冲突双向标红（切页重算）
+   - 运行验证通过（开/关、改键、禁用回落）
+5. **内存优化：窗口隐藏即释放**（先量化）
+   - 量化埋点：`ThumbnailCache::stats()`、`pixmapBytes()/isAnimationLoaded()`、`[mem]` Info 日志（hide/show）
+   - 数据：大头是 GIF `QMovie`（整文件 QBuffer + 解码帧，单部 1.2~2.1MB），非缩略图缓存；GIF 类目显示 105.7MB → 旧版隐藏 150.2MB 不回落
+   - 实施（温和策略）：`hideEvent` → 全 cell `setInViewport(false)` 卸 GIF + `ThumbnailCache::clear()`；`showEvent` → `updateCellVisibility()` 恢复；cell 保留 pixmap 零闪烁
+   - 验收：105.7 → **35.2MB（−67%）**，重开 +6s 恢复 104.7MB；激进 `clearStickerCells()` 经数据否决（仅多 0.85MB）
 
 ## 项目类型
 

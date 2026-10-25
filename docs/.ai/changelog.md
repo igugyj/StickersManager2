@@ -21,6 +21,19 @@
   - `messageHandler` 始终安装：控制台构建 控制台+文件 双写，非控制台仅文件（此前控制台构建根本不写日志文件）；删除 `DEBUG_MODE` 宏与 `LOG_TO_CONSOLE` 宏
   - 分级日志：`defaultLogLevel()` 按构建类型（CONSOLE=Debug、否则 Warning）；`settings.json` 新增 `logLevel` 键（空=未设置→构建默认）；Base 页新增 Logging 分组 Log Level 下拉（Debug/Info/Warning/Critical/Fatal，显示实际生效级别，选中值等于构建默认时清除键不落盘）；`main.cpp` 在启动及 3 处 `loadSettings()` 后 `applyLogLevel()`；新增中文启动日志行
   - 验证：字节级确认 `log.log` 为合法 UTF-8；`logLevel=Warning` 时 0 条 Debug / 2 条 Warning
+- 全局设置热键 Ctrl+I（打开/切换设置对话框）
+  - `settings.json` 新增 `openSettingsHotkey`（默认 `"Ctrl+I"`，录制模式字符串，`""` = 未绑定）与 `openSettingsHotkeyEnabled`（默认 `true`），单源 `defaultSettings()`
+  - Base 页新增 Hotkey 分组：`Enable` 复选框 + `Open Settings` `HotkeyCaptureButton`（与库热键同一套录制/检测系统），`applyToConfig()` 落盘
+  - `main.cpp` 接线：`applySettingsHotkey()` 刷新状态并联动 `syncHotkeyListener()`（启动条件改为「库热键 map 非空 **或** 设置热键启用」），在启动（`createWindows` 后）及 3 处 `loadSettings()` 后调用；`keyReleased` 中设置热键**优先命中**再走窗口 map（toggle 语义）；首次启动模态对话框期间 no-op（`activeModalWidget()`）；Base 页录制期间 `SettingsDialog::isHotkeyRecording()` 抑制全局触发
+  - 冲突**双向标红**：Base 页 `setConflictChecker` 比对启用库热键，`LibrarySettingsPage::hotkeyInUse()` 比对设置热键，切页时 `SettingsDialog` 重跑 `refreshHotkeyConflict()` / `validateAllHotkeys()`
+  - 验证：默认 Ctrl+I 开/关（监听日志 `2 hotkeys`）；改键 `Ctrl+Shift+F9` 生效；`enabled=false` 回落 `1 hotkeys` 且按键失效
+- 内存优化：窗口隐藏即释放（先量化再动手）
+  - **量化埋点**（Info 级，长期保留）：`ThumbnailCache::stats()`（条目 + 估算字节，key→bytes 台账按 `size()` 剪除淘汰键）、`StickerCell::pixmapBytes()/isAnimationLoaded()`、`CategoryButton::pixmapBytes()`、`MainWindow::logMemoryState()` —— hide/show 输出 `[mem]` 行
+  - **量化结论**（双库 emo 1207 张 / ddemo 688 张，`animateThumbnails=true`，自动化测：显示 → 滚动 → 隐藏）：启动隐藏 20.0MB；静态类目显示 23.9MB、隐藏 23.6MB（几乎不回落）；**GIF 类目（bilibili 343/344 GIF，均值 2MB/部）显示 105.7~149.9MB、隐藏后 150.2MB 完全不回落** —— 大头是 GIF `QMovie`（`loadAnimation` 整文件读入 QBuffer + 解码帧），**不是**缩略图缓存（实测仅 0.9~4.9MB）
+  - **释放策略（温和，按数据选定）**：`MainWindow::hideEvent` 对全部 cell `setInViewport(false)`（复用 scroll-out 路径卸 QMovie）+ `m_thumbnailCache->clear()`；**不**做激进的 `clearStickerCells()`（只多回收 0.85MB，却要付重建代价）；cell 保留 `m_currentPixmap` → 重开零闪烁
+  - 恢复：`showEvent` 调 `updateCellVisibility()` 重置视口状态，动画按既有懒加载路径恢复；托盘"隐藏"逐窗口 `hide()` 同样覆盖
+  - **验收数据**：GIF 类目显示 105.7MB → 隐藏 **35.2MB（−70.5MB，−67%）**；重开 +6s 恢复 104.7MB（动画回来），`[mem]` 显示 `cache=0`、`cellPixKB=850` 前后不变（无占位闪烁）
+  - 附带发现（待办）：首屏创建的 cell 因 `m_inViewport` 默认 `true`，`setInViewport(true)` 直接 return → GIF 要"滚出再滚回"才开始播放（`stickercell.cpp:172`）
 
 ## [2025-01-16]
 

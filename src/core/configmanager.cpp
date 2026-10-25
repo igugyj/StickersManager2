@@ -63,6 +63,8 @@ static QJsonObject defaultSettings() {
     s["checkForUpdatesOnStartup"] = true;
     s["startWithWindows"] = false;
     s["logLevel"] = QString(); // "" = 未设置，实际默认值按构建类型推导（log.cpp defaultLogLevel()）
+    s["openSettingsHotkey"] = QString("Ctrl+I");
+    s["openSettingsHotkeyEnabled"] = true;
     return s;
 }
 
@@ -341,6 +343,22 @@ void ConfigManager::setLogLevel(const QString &v) {
         m_settings.remove("logLevel"); // "Auto"：清除键，回到构建类型默认
     else
         m_settings["logLevel"] = v;
+}
+
+QString ConfigManager::getOpenSettingsHotkey() const {
+    return m_settings["openSettingsHotkey"].toString("Ctrl+I");
+}
+
+void ConfigManager::setOpenSettingsHotkey(const QString &v) {
+    m_settings["openSettingsHotkey"] = v;
+}
+
+bool ConfigManager::getOpenSettingsHotkeyEnabled() const {
+    return m_settings["openSettingsHotkeyEnabled"].toBool(true);
+}
+
+void ConfigManager::setOpenSettingsHotkeyEnabled(bool v) {
+    m_settings["openSettingsHotkeyEnabled"] = v;
 }
 
 bool ConfigManager::getDefaultAlwaysOnTop() const {

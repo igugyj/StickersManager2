@@ -10,6 +10,7 @@
 #include <QLockFile>
 #include <QMessageBox>
 #include <QStandardPaths>
+#include <functional>
 #include "log.hpp"
 #include "tray.h"
 #include "mainwindow.h"
@@ -106,12 +107,29 @@ int main(int argc, char *argv[])
     };
 
     GlobalInputListener *listener = new GlobalInputListener();
+    // 全局设置热键状态 + 触发入口（showSettings 定义在其后，先声明转发；
+    // TODO#3 精简 main.cpp 时随热键逻辑一起外移）
+    QString settingsHotkey;
+    bool settingsHotkeyEnabled = false;
+    std::function<void()> toggleSettings;
     QObject::connect(listener, &GlobalInputListener::keyReleased, [&](int keyCode, ModifierKeys modifiers)
                      {
+        // Base 页录制热键期间抑制全局触发（否则录制时按到当前热键会把设置对话框关掉）
+        if (settingsDlg && settingsDlg->isHotkeyRecording())
+            return;
+
         QString keyName = keyCodeToKeyString(keyCode);
         QString modifiersName = modifiersToString(modifiers);
         QString hotkey = modifiersName + "+" + keyName;
         if (!modifiers) hotkey = keyName;
+
+        // 设置热键优先命中（与库热键冲突时靠双向标红引导，不靠运行时仲裁）
+        if (settingsHotkeyEnabled && !settingsHotkey.isEmpty() &&
+            ShortcutCompare::compareShortcutKeys(hotkey, settingsHotkey)) {
+            if (toggleSettings)
+                toggleSettings();
+            return;
+        }
 
         for (auto it = hotkeyToWindow.begin(); it != hotkeyToWindow.end(); ++it) {
             if (ShortcutCompare::compareShortcutKeys(hotkey, it.key())) {
@@ -126,7 +144,9 @@ int main(int argc, char *argv[])
 
     auto syncHotkeyListener = [&]()
     {
-        if (hotkeyToWindow.isEmpty())
+        // 启动条件：任一库热键存在，或设置热键启用（后者无库热键时也必须监听）
+        const bool settingsHkActive = settingsHotkeyEnabled && !settingsHotkey.isEmpty();
+        if (hotkeyToWindow.isEmpty() && !settingsHkActive)
         {
             listener->stopListening();
             return;
@@ -135,7 +155,8 @@ int main(int argc, char *argv[])
             return;
         if (listener->startListening())
         {
-            qDebug() << "Global input listener is running with" << hotkeyToWindow.size() << "hotkeys";
+            qDebug() << "Global input listener is running with"
+                     << hotkeyToWindow.size() + (settingsHkActive ? 1 : 0) << "hotkeys";
         }
         else
         {
@@ -143,10 +164,19 @@ int main(int argc, char *argv[])
         }
     };
 
+    // 刷新设置热键状态（settings.json 的 openSettingsHotkey*）并联动监听启停
+    auto applySettingsHotkey = [&]()
+    {
+        settingsHotkey = config.getOpenSettingsHotkey();
+        settingsHotkeyEnabled = config.getOpenSettingsHotkeyEnabled();
+        syncHotkeyListener();
+    };
+
     auto fullReload = [&]()
     {
         config.loadSettings();
         applyLogLevel();
+        applySettingsHotkey();
         auto libs = config.getLibraries();
         removeStaleWindows(libs);
         createWindows(libs);
@@ -161,6 +191,7 @@ int main(int argc, char *argv[])
     {
         config.loadSettings();
         applyLogLevel();
+        applySettingsHotkey();
         auto libs = config.getLibraries();
         removeStaleWindows(libs);
         createWindows(libs);
@@ -211,6 +242,13 @@ int main(int argc, char *argv[])
         settingsDlg->raise();
         settingsDlg->activateWindow();
     };
+    // 全局热键触发入口：toggle 语义（已显示则关闭），与托盘双击一致
+    toggleSettings = [&]() {
+        // 首次启动的模态设置对话框期间不响应，避免嵌套出第二个对话框
+        if (QApplication::activeModalWidget())
+            return;
+        showSettings(true);
+    };
 
     // Show settings dialog on first launch if no libraries configured
     auto libs = config.getLibraries();
@@ -229,12 +267,13 @@ int main(int argc, char *argv[])
         {
             config.loadSettings();
             applyLogLevel();
+            applySettingsHotkey();
             libs = config.getLibraries();
         }
     }
 
     createWindows(libs);
-    syncHotkeyListener();
+    applySettingsHotkey(); // 设置热键状态 + 启动监听（此时库热键映射已就绪，日志计数完整）
 
     TrayIcon::instance()->updateShowMenu(libs);
 

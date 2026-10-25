@@ -84,6 +84,11 @@ public:
     // 日志级别："" = 未设置（按构建类型推导），否则 "Debug"/"Info"/"Warning"/"Critical"/"Fatal"
     QString getLogLevel() const;
     void setLogLevel(const QString &v);
+    // 全局热键：打开/切换设置对话框（默认 Ctrl+I，录制模式改键，空串 = 未绑定）
+    QString getOpenSettingsHotkey() const;
+    void setOpenSettingsHotkey(const QString &v);
+    bool getOpenSettingsHotkeyEnabled() const;
+    void setOpenSettingsHotkeyEnabled(bool v);
 
     // Effective per-library
     QSize getEffectiveWindowSize(const LibraryConfig &lib) const;
