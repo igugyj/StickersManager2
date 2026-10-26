@@ -233,6 +233,8 @@ void StickerCell::clearHighlight() {
 void StickerCell::mousePressEvent(QMouseEvent *event) {
     if (event->button() == Qt::RightButton)
         emit rightClicked(m_filePath);
+    else if (event->button() == Qt::MiddleButton)
+        emit middleClicked(m_filePath);
     else
         emit clicked(m_filePath);
 }
@@ -240,7 +242,8 @@ void StickerCell::mousePressEvent(QMouseEvent *event) {
 void StickerCell::mouseDoubleClickEvent(QMouseEvent *event) {
     if (!m_copyOnDblClick) return;
 
-    if (event->button() == Qt::RightButton)
+    // 仅左键双击 = 复制；中键语义是"打开所在位置"，双击不再触发复制
+    if (event->button() != Qt::LeftButton)
     {
         return;
     }

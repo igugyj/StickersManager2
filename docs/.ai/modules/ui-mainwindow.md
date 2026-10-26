@@ -21,12 +21,13 @@ m_config + LibraryConfig → 构造 → loadLibrary()（StickerLibrary 扫描）
 显示分类 → displayStickers → relayoutGrid → updateVisibleCells（只建视口内 StickerCell）→ refresh()
 滚动 → recalculateGridColumns → updateCellVisibility → setInViewport（GIF 装卸）
 搜索 → onSearchTextChanged → delayedSearch（QTimer）→ performSearch → displayStickers
-双击 → onStickerDoubleClicked → 复制 + RecentUsageStore::add
-左键 → onStickerClicked → m_highlightManager.setHighlightedPath(path)
-右键 → onStickerRightClicked → setHighlightedPath + ImagePreviewDialog(filePath, animatePreview, siblings)
+双击（左键）→ onStickerDoubleClicked → 复制 + RecentUsageStore::add → 隐藏窗口（hideEvent 里顺带关预览）
+左键 → onStickerClicked → setHighlightedPath +（预览开着时）m_previewDlg->setCurrentFile(categorySiblings, path) → currentFileChanged → onPreviewFileChanged → 滚动到行 + 高亮
+右键 → onStickerRightClicked → setHighlightedPath + 开/关 ImagePreviewDialog(filePath, animatePreview, siblings)
+中键 → onStickerMiddleClicked → closePreview() + setHighlightedPath + `explorer.exe /select,<native路径>`（受 SuzuEmojy 启发；关预览**必须**在高亮之前）
 预览切换 → currentFileChanged → onPreviewFileChanged → setHighlightedPath + 滚动到目标 cell
+窗口 hide → closePreview()（隐即关闭，不恢复）+ 全 cell setInViewport(false)（卸 GIF）+ ThumbnailCache::clear() → logMemoryState("hidden-released") → 1/5/15/60s `decay+Xs` 采样行
 关闭预览 → onPreviewClosed → m_highlightManager.clearHighlight()
-窗口 hide → 全 cell setInViewport(false)（卸 GIF）+ ThumbnailCache::clear() → logMemoryState("hidden-released") → 1/5/15/60s `decay+Xs` 采样行
 窗口 show → updateCellVisibility()（恢复视口动画）→ logMemoryState("shown")
 ```
 
@@ -49,13 +50,16 @@ m_config + LibraryConfig → 构造 → loadLibrary()（StickerLibrary 扫描）
   - `setHighlightedPath(path)` 设置路径并 refresh 所有 cell
   - `clearHighlight()` 清空路径并 refresh
   - `refresh()` 遍历 `m_cellMap`，路径匹配 → `setHighlighted(true)`，否则 `setHighlighted(false)`
-  - 调用时机：左键点击、右键打开预览、预览切换上下张、updateVisibleCells 新建 cell 后
+  - 调用时机：左键点击、右键打开预览、中键打开资源管理器、预览切换上下张、updateVisibleCells 新建 cell 后
   - `onPreviewFileChanged` 先按索引滚动到目标行，再设置高亮路径（解决虚拟滚动 cell 不在 map 的问题）
-  - 关闭预览时调用 `clearHighlight()`
+  - 关闭预览时调用 `clearHighlight()` → **顺序红线**：中键必须先 `closePreview()` 再 `setHighlightedPath`，否则高亮刚设就被清掉（验收日志 `setHighlightedPath: "..." old: ""` 即该顺序的实证）
 - **高亮样式**：`StickerCell::setHighlighted` 用 `QApplication::palette().color(QPalette::Highlight)` 取色（非 palette()，避免不一致）
+- **鼠标分发（cell 只发信号，动作在 MainWindow）**：`mousePressEvent` 三分支 → `rightClicked` / `middleClicked` / `clicked`；`mouseDoubleClickEvent` 仅**左键**做复制（中键/右键双击直接 return，避免中键双击既复制又开两次资源管理器）。左键在预览开着时还会 `ImagePreviewDialog::setCurrentFile()` 把预览**切到被点的 cell**（同类目命中索引，跨类目重建 siblings）
+- **`MainWindow::closePreview()`**（幂等助手）**三处调用**：**右键 toggle 关闭**、**`hideEvent`（隐即关闭，不恢复）**、**中键打开资源管理器前** —— 预览是独立 top-level 窗口，不随父窗口 `hide()` 隐藏，必须显式关
 - `mousePressEvent` 不做高亮，仅发射信号
 
 ## 变更记录索引
 
+- 2026-10-26：新增中键 `middleClicked` → `onStickerMiddleClicked`（关预览 → 高亮 → `explorer /select`）；双击限左键复制；预览残留修复：`hideEvent` 里 `closePreview()`（隐即关闭）；预览跟随点击（`onStickerClicked` → `setCurrentFile`）
 - 2026-10-25：隐藏即释放（hideEvent 卸 GIF + 清缩略图缓存）+ `[mem]` 内存埋点（hideEvent/showEvent）
 - 2025-01-14：docs/.ai Init（首次记录）

@@ -1,3 +1,14 @@
+# Changelog — v2.9.0 → v2.10.x  (unrelease)
+
+### Added
+
+- **Middle-click a sticker** to reveal it in Explorer (opens the containing folder with the file selected)
+- While the preview is open, clicking another sticker switches the preview to it
+
+### Fixes
+
+- The preview window no longer lingers on screen — it now closes when you middle-click a sticker or hide its window (e.g. after copying)
+
 # Changelog — v2.8.0 → v2.9.0 (2026.10.25)
 
 ### Added

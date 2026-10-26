@@ -4,6 +4,24 @@
 
 ---
 
+## [2026-10-26]
+
+### 中键打开资源管理器并选中文件（TODO #1，受 SuzuEmojy v1.13.2 启发）+ 预览残留修复
+
+- **功能**：`StickerCell` 新增信号 `middleClicked(filePath)`（`mousePressEvent` 改三分支：右键 / 中键 / 其余），动作在 `MainWindow::onStickerMiddleClicked`：`closePreview()` → `m_highlightManager.setHighlightedPath(...)`（沿用 `highlightOnClick` 语义，**先关预览 → 再高亮 → 最后执行**，用户明确要求"先高亮再执行动作"）→ `QProcess::startDetached("explorer.exe", {"/select,", QDir::toNativeSeparators(...)})`（Qt6 两参数重载，含空格路径安全；文件不存在 → `qWarning [MiddleClick]` + 托盘警告）
+- **双击复制限左键**：`mouseDoubleClickEvent` 原本除右键外都复制 → 中键双击会"复制 + 连开两次资源管理器"，改为 `button() != Qt::LeftButton` 直接 return
+- **预览残留 bug（用户发现）**：`ImagePreviewDialog` 是**独立 top-level 窗口**，双击复制时 `onStickerDoubleClicked` 只 `hide()` 主窗口，预览不随父窗口隐藏 → 双击后预览一直挂着
+  - **最终设计（用户三轮拍板）**：挂在两处 —— `MainWindow::hideEvent` 开头 `closePreview()`（**随仓库窗口隐藏而隐藏，隐即关闭、再次显示不恢复**）+ **中键开头 `closePreview()`**（用户先定"中键不管"、后改口"中键也关"）；三处调用 = 右键 toggle / hideEvent / 中键
+  - **顺序红线**：`closePreview()` → `finished` → `onPreviewClosed()` 会 `clearHighlight()`，所以中键里它必须排在 `setHighlightedPath` **之前**，否则高亮刚设就被清掉（验收日志 `setHighlightedPath: "<path>" old: ""` 正是该顺序的实证）
+  - `closePreview()` 为幂等助手（`accept()` → 置空 `m_previewDlg` + 防御性再置空）
+- **预览跟随点击（用户追加需求"点 cell → 预览切图"）**：此前左键只高亮、预览停在原图。新增 `ImagePreviewDialog::setCurrentFile(siblings, filePath)`（同类目命中 `m_siblings` 索引 → `showAt`；跨类目以该文件所在类目重建列表，兜底单元素；路径相同直接 return 不重载），由 `MainWindow::onStickerClicked` 在 `m_previewDlg` 非空时调用；抽出私有助手 `categorySiblings(filePath)`，与右键开预览共用同一段取 siblings 的逻辑
+- **验收（pwsh 自动化 harness，14/14 通过，无残留进程/窗口）**：右键开预览 → **左键点另一个 cell → 预览切图**（`onPreviewFileChanged` 0→1，且其路径 == 点击 cell 的 `setHighlightedPath` 路径）且预览保持打开 → 中键（选在预览矩形外的 cell）→ **预览关闭** + 新增 explorer 窗口 + `setHighlightedPath` 非空路径 + 无 `[MiddleClick]` 告警 → 右键重新开预览 → 双击同 cell → **预览关闭（hideEvent 路径）** + 主窗口隐藏 + `Successfully copied file to clipboard`；热键恢复主窗口 → 左键不开 explorer、不开预览
+- **harness 坑（复用注意）**：
+  - `mouse_event` 中键标志是 **MIDDLEDOWN=0x0020 / MIDDLEUP=0x0040**（0x0010 是 RIGHTUP、0x0002/0x0004 才是左键）—— 记错就完全点不出事件，表现为"三项交互全失败但左键高亮正常"
+  - 预览对话框**没有显式标题** → Windows 上标题取应用名 `Stickers Manager`（不是空串）；另有 1 个 0×0 尺寸的 Qt 助手窗口常驻，枚举时须按"尺寸 ≥50 且居中"过滤，否则误判
+  - 预览居中覆盖主窗口大半，测"预览开着时点 cell"必须选**预览矩外**的 cell，否则点击落在预览上
+  - 日志时间戳格式含 12/24 小时歧义 → 断言改用**匹配行计数前后差**，不用时间戳字符串比较
+
 ## [2026-10-25]
 
 ### 修复：切类目/滚动剪枝泄漏 QMovie（隐藏后 private bytes 不回落 784MB 根因）

@@ -18,7 +18,7 @@ StickersManager is a Windows sticker management tool built with C++20 and Qt 6.1
 
 - **Libraries & categories** — each library is a local folder, every subfolder becomes a category; search stickers by filename and keep a per-library "Recently Used" list
 - **Multi-window & hotkeys** — one window per library, toggled by global hotkeys (record conflicts highlighted); press **Ctrl+I** to open Settings from anywhere
-- **Stickers** — double-click to copy, right-click for full-size preview, optional tags (name / size / file type) on every cell
+- **Stickers** — double-click to copy, middle-click to reveal in Explorer, right-click for full-size preview, optional tags (name / size / file type) on every cell
 - **Animated GIFs** — play while visible, unload off-screen; hiding a window releases its memory immediately
 - **Configurable** — per-library overrides on top of global defaults, drag-to-reorder libraries, tray double-click target, Start with Windows
 - **Hot reload** — tray *Rescan* picks up config and library changes without restarting

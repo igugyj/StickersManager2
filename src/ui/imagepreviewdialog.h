@@ -21,6 +21,9 @@ public:
 
     QString getCurrentFilePath() const { return m_filePath; }
 
+    // 预览开着时点别的 cell：把预览切到该贴纸（传入其类目 siblings，跨类目时重建列表）
+    void setCurrentFile(const QVector<QString> &siblings, const QString &filePath);
+
 protected:
     void mousePressEvent(QMouseEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;

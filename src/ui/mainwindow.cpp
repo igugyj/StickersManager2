@@ -8,6 +8,7 @@
 #include <QHBoxLayout>
 #include <QScrollBar>
 #include <QTimer>
+#include <QProcess>
 #include <windows.h>
 #include <psapi.h>
 #include "tray.h"
@@ -357,6 +358,7 @@ void MainWindow::updateVisibleCells() {
         connect(cell, &StickerCell::clicked, this, &MainWindow::onStickerClicked);
         connect(cell, &StickerCell::doubleClicked, this, &MainWindow::onStickerDoubleClicked);
         connect(cell, &StickerCell::rightClicked, this, &MainWindow::onStickerRightClicked);
+        connect(cell, &StickerCell::middleClicked, this, &MainWindow::onStickerMiddleClicked);
         cell->setToolTip(QFileInfo(path).fileName());
 
         int row = i / cols, col = i % cols;
@@ -443,6 +445,8 @@ void MainWindow::closeEvent(QCloseEvent *event) {
 
 void MainWindow::hideEvent(QHideEvent *event) {
     QMainWindow::hideEvent(event);
+    // 预览是独立 top-level 窗口，不随父窗口一起隐藏 → 隐即关闭（不恢复，用户选定语义）
+    closePreview();
     // 先记录释放前状态（movies 计数是 GIF 首屏播放的实证），再释放
     logMemoryState("hidden");
     // 隐藏即释放（量化见 docs/.ai/changelog [2026-10-25]）：GIF QMovie 是后台内存大头
@@ -569,17 +573,53 @@ void MainWindow::onCategoryContextMenuRequested(const QPoint &pos) {
 
 void MainWindow::onStickerClicked(const QString &filePath) {
     m_highlightManager.setHighlightedPath(m_eff.highlightOnClick ? filePath : QString());
+    // 预览开着 → 内容跟随点击的 cell（点 cell → 预览切图）
+    if (m_previewDlg)
+        m_previewDlg->setCurrentFile(categorySiblings(filePath), filePath);
+}
+
+// 中键（受 SuzuEmojy 启发）：先关预览，再高亮 cell（与左/右键同一套 highlightOnClick 语义），
+// 最后打开资源管理器到文件所在文件夹并选中该文件。
+// 关预览必须在 setHighlightedPath **之前**：closePreview() → finished → onPreviewClosed() 会 clearHighlight()，
+// 顺序反了高亮刚设就被清掉。
+// Qt6 两参数形式 explorer.exe /select, "<path>" → 与手输 explorer /select,"<path>" 同构。
+void MainWindow::onStickerMiddleClicked(const QString &filePath) {
+    closePreview();
+    m_highlightManager.setHighlightedPath(m_eff.highlightOnClick ? filePath : QString());
+
+    const QFileInfo fi(filePath);
+    if (!fi.exists()) {
+        qWarning() << "[MiddleClick] file does not exist:" << filePath;
+        TrayIcon::showMessage("Warning", "File not found: " + filePath);
+        return;
+    }
+    const QString native = QDir::toNativeSeparators(fi.absoluteFilePath());
+    if (!QProcess::startDetached("explorer.exe", QStringList() << "/select," << native))
+        qWarning() << "[MiddleClick] failed to launch explorer for" << native;
+}
+
+// 关闭预览窗口：accept() 同步触发 finished → onPreviewClosed()（置空 m_previewDlg 并清高亮），
+// 这里的再次置空是防御性的，保证 m_previewDlg 不悬空。
+// 调用点三处：右键 toggle 关闭、hideEvent（窗口隐藏即关，不恢复）、中键打开资源管理器前。
+void MainWindow::closePreview() {
+    if (m_previewDlg) {
+        m_previewDlg->accept();
+        m_previewDlg = nullptr;
+    }
+}
+
+// 文件所在类目的贴纸列表（右键开预览 / 预览跟随点击共用）
+QVector<QString> MainWindow::categorySiblings(const QString &filePath) const {
+    return m_library->getCategories().value(QFileInfo(filePath).dir().dirName());
 }
 
 void MainWindow::onStickerRightClicked(const QString &filePath) {
     m_highlightManager.setHighlightedPath(m_eff.highlightOnClick ? filePath : QString());
     if (m_previewDlg) {
-        m_previewDlg->accept();
-        m_previewDlg = nullptr;
+        closePreview();
     } else {
-        QString category = QFileInfo(filePath).dir().dirName();
-        QVector<QString> siblings = m_library->getCategories().value(category);
-        m_previewDlg = new ImagePreviewDialog(filePath, m_eff.animatePreview, siblings, this);
+        m_previewDlg = new ImagePreviewDialog(filePath, m_eff.animatePreview,
+                                              categorySiblings(filePath), this);
         connect(m_previewDlg, &ImagePreviewDialog::finished,
                 this, &MainWindow::onPreviewClosed);
         connect(m_previewDlg, &ImagePreviewDialog::currentFileChanged,

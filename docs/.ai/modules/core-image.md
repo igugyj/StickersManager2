@@ -37,8 +37,10 @@ GIF：滚入 → loadAnimation（QMovie+QBuffer+CacheNone，buffer 以 movie 为
 - **首屏 GIF 播放已验证正常**（2026-10-25）：`setThumbnail()` 在 `m_animateEnabled && isAnimated && m_inViewport`（默认 `m_inViewport=true`）时直接 `loadAnimation()`（stickercell.cpp:93）—— 点进 GIF 类目不滚动 12s 实测 `movies=9`；曾怀疑的"要滚出再滚回才播"是首屏类目恰好无 GIF 的误判，**无此 bug、代码未改**
 - 动画开关：`animateThumbnails`（网格）/ `animatePreview`（预览）两个独立设置
 - ImagePreviewDialog 双栏布局：顶部信息栏（文件名/格式/尺寸/大小/日期/类目）、中部图片+左右hover箭头
-- 关闭规则：ESC + 右键；左键无效果（子控件自行处理）；Enter/Space 不再关闭；关闭时清除高亮
+- 关闭规则：ESC + 右键；左键无效果（子控件自行处理）；Enter/Space 不再关闭；关闭时清除高亮；**中键贴纸**与**主窗口 `hide()`**（双击复制、托盘 Hide、退出等）也会关 —— 分别由 `onStickerMiddleClicked` 与 `MainWindow::hideEvent` 调 `closePreview()`
+- 预览窗口标题 = 应用名 `Stickers Manager`（未 setWindowTitle 时 Qt 取应用显示名）
 - 左右导航箭头默认隐藏，鼠标进入图片区左右10%区域时显示对应按钮（QApplication 级 eventFilter）
+- **`setCurrentFile(siblings, filePath)`**（2026-10-26 新增）：预览开着时被网格左键调用 → 同类目命中 `m_siblings` 索引走 `showAt`；跨类目/不在列表则以该文件重建 `m_siblings`（兜底单元素）；`filePath == m_filePath` 时直接 return 避免重载
 - GIF 播放状态由 animatePreview 设置控制，无手动切换按钮
 - 预览切换上下张时高亮跟随由 HighlightManager 统一管理（currentFileChanged 信号）
 

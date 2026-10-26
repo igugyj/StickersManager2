@@ -50,6 +50,9 @@ signals:
 
     void rightClicked(const QString &filePath);
 
+    // 中键：打开所在文件夹并选中该文件（动作由 MainWindow::onStickerMiddleClicked 执行）
+    void middleClicked(const QString &filePath);
+
 protected:
     void mousePressEvent(QMouseEvent *event) override;
 
