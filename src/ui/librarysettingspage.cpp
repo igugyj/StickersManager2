@@ -687,17 +687,18 @@ void LibrarySettingsPage::addLibrary() {
         QFileDialog::ShowDirsOnly | QFileDialog::DontUseNativeDialog);
     if (path.isEmpty()) return;
 
-    QString canonical = QDir(path).canonicalPath();
     auto libs = m_config->getLibraries();
-    for (const auto &lib : libs)
-        if (QDir(lib.path).canonicalPath() == canonical)
-            return;
-
     QChar letter = QChar(static_cast<char>('E' + qMin(static_cast<int>(libs.size()), 25)));
     QString hk = QString("Ctrl+Shift+%1").arg(letter);
     LibraryConfig lib(path, hk, true);
-    libs.append(lib);
-    m_config->setLibraries(libs);
+
+    // 走 ConfigManager::addLibrary：它负责补 id（否则 id=-1 被排到数组首位 → 新卡片按
+    // rebuildList 的 libs[i] 兜底取到旧库，显示成已有路径）+ canonical path 查重
+    if (!m_config->addLibrary(lib)) {
+        QMessageBox::information(this, "Library Already Exists",
+            QString("\"%1\" is already one of your libraries.").arg(QDir(path).dirName()));
+        return;
+    }
 
     LibraryEditWidgets w = {};
     m_libs.append(w);
@@ -821,6 +822,28 @@ bool LibrarySettingsPage::collectToConfig() {
     libs.reserve(m_libs.size());
     for (int i = 0; i < m_libs.size(); ++i)
         libs.append(collectOne(i));
+
+    // 重复路径校验：Browse 把某张卡片改成别的库的文件夹这条旁路也拦掉。
+    // canonical 归一（大小写/分隔符/尾斜杠），目录不存在时退化为 cleanPath 便于比较
+    auto pathKey = [](const QString &p) {
+        const QString c = QDir(p).canonicalPath();
+        return (c.isEmpty() ? QDir::cleanPath(p) : c).toLower();
+    };
+    for (int i = 0; i < libs.size(); ++i) {
+        if (libs[i].path.isEmpty()) continue;
+        const QString keyI = pathKey(libs[i].path);
+        for (int j = i + 1; j < libs.size(); ++j) {
+            if (libs[j].path.isEmpty()) continue;
+            if (pathKey(libs[j].path) != keyI) continue;
+            QMessageBox::warning(this, "Duplicate Library Path",
+                QString("Libraries \"%1\" and \"%2\" point to the same folder:\n%3\n"
+                        "Change one of them before saving.")
+                    .arg(QFileInfo(libs[i].path).fileName(),
+                         QFileInfo(libs[j].path).fileName(),
+                         libs[i].path));
+            return false;
+        }
+    }
 
     for (int i = 0; i < libs.size(); ++i) {
         if (libs[i].hotkey.isEmpty() || !libs[i].enabled) continue;

@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include <QFileDialog>
+#include <QMessageBox>
 #include <QDebug>
 #include <QApplication>
 #include <QKeySequence>
@@ -193,8 +194,17 @@ void MainWindow::loadLibrary() {
         libraryPath = QFileDialog::getExistingDirectory(this, "Select Stickers Library", QDir::homePath(),
             QFileDialog::ShowDirsOnly | QFileDialog::DontUseNativeDialog);
         if (libraryPath.isEmpty()) return;
+        const QString oldPath = m_libConfig.path;
         m_libConfig.path = libraryPath;
-        m_config->addLibrary(m_libConfig);
+        // addLibrary：同 id 条目 → 原地更新 path（失效路径替换，不追加死路径）；否则补 id 追加；
+        // canonical 查重。返回 false = 挑中的文件夹已是现有库
+        if (!m_config->addLibrary(m_libConfig)) {
+            m_libConfig.path = oldPath; // 回退，避免本窗口与配置指向不同路径
+            QMessageBox::warning(this, "Library Already Exists",
+                QString("\"%1\" is already one of your libraries.\nPick a different folder.")
+                    .arg(QDir(libraryPath).dirName()));
+            return;
+        }
         m_config->saveConfig();
         m_recents.load(m_libConfig.path);
         m_recents.setLimit(m_eff.recentLimit);

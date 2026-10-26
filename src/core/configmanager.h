@@ -40,7 +40,9 @@ public:
 
     QVector<LibraryConfig> getLibraries() const;
     void setLibraries(const QVector<LibraryConfig> &libs);
-    void addLibrary(const LibraryConfig &lib);
+    // 追加库 / 按 id 原地更新：id >= 0 且同 id 条目已存在 → 更新其 path（失效路径替换语义，
+    // 见实现内注释）；否则补 id + canonical path 查重后追加。返回 false = 该文件夹已是其它库。
+    bool addLibrary(const LibraryConfig &lib);
 
     void setConfig(const QJsonObject &cfg);
     QJsonObject config() const;

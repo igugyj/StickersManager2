@@ -6,6 +6,17 @@
 
 ## [2026-10-26]
 
+### 修复：添加仓库时索引到已有仓库路径（TODO #3，三层修法）
+
+- **根因**：`LibrarySettingsPage::addLibrary()` 用 `LibraryConfig(path, hk, true)` 建新库 → `id = -1` → `setLibraries()` 按 id 排序把新条目写到数组**首位** → 下次 `getLibraries()` 的 legacy 迁移给它赋 `id=0`（与已有库撞）→ `rebuildList():336` 的按位兜底 `libCfg = libs[i]` 取到旧库 → **新卡片显示成已有库路径** → 保存后两条 path 相同 → 两个窗口索引同一文件夹
+- **修法（三层）**：
+  1. `ConfigManager::addLibrary()` 改返回 `bool`：canonical path 查重（重复返回 false）+ `id < 0` 时补 id。id 取 **`maxId+1` 而非原方案的 `libs.size()`** —— `removeLibrary()` 不重编号，存量配置可能有 id 空洞（本机测试配置就是 0、2），`size()`=2 会撞已有 id，`std::sort` 非稳定下新条目仍可能不在数组末位，按位兜底照样取错
+  2. `collectToConfig()` 存盘前加**重复路径校验**（canonical/cleanPath 归一 + toLower，照 829 行重复热键的写法）→ 拦掉 Browse 把卡片改成已有路径这条旁路；失败时 `onSave` 早退不落盘
+  3. 重复时弹 `QMessageBox::information("Library Already Exists")`（原先静默 return「什么都没发生」）—— 设置页 `addLibrary()` 与 `MainWindow::loadLibrary()` 两个调用方都改接 bool，后者重复时回退 `m_libConfig.path` 并 warning
+- **验收（powershell + UIA 自动化，29/29，脚本 `opencode/test_addlib.ps1`）**：文件对话框用 `ValuePattern.SetValue` 直填完整路径绕开中文 IME（Qt 源码确认链路：lineEdit `returnPressed` → `accept()` → `typedFiles()` 原样取文本，且 `autoCompleteFileName` 会把输入的目录选进列表）；所有点击先 `WindowFromPoint` 校验 pid、`AutomationElement.FromPoint` 校验命中控件，防误点。断言：A 新增库后 3 张卡路径各自正确（bug 症状未复现）、落盘 `ids=[0,2,3]` 升序、新库在数组末位、路径唯一；B 再选同一路径弹 "Library Already Exists"、不加卡不落盘；C 把卡片改成已有路径 Save 弹 "Duplicate Library Path"、保存被拦。回归 `test_preview.ps1` **14/14**
+- **相邻问题一并修复：失效路径是 append 而非 update**（用户拍板"修"）：`MainWindow::loadLibrary()` 选了新文件夹后，旧死路径条目残留在 config（还与新条目撞 id）→ 下次启动再弹一次选目录框。修法：`addLibrary()` 检测 **同 id 条目已存在** → 原地更新该条目的 path（查重排除自身，自己的旧路径就是那条失效路径）；否则走补 id + canonical 查重的追加分支。配套：`createWindows()` 的窗口键与标题改取 `window->getLibraryConfig().path`（实际路径，loadLibrary 可能在构造期间替换过路径），含同文件夹重复条目（仅旧版遗留配置）时 deleteLater 先建者保留
+  - **专项验收（`opencode/test_reload_path.ps1`，19/19）**：P1 死路径启动弹框→选回原文件夹 → config 仍 2 条 ids[0,2]、死路径被原地替换、Ctrl+Shift+E 开出 `Stickers Manager - emo`；P2 重启不再弹框、窗口正常；P3 再改死→选已有库 ddemo → 弹 `Library Already Exists`、config 未动。回归 `test_addlib.ps1` **29/29**、`test_preview.ps1` **14/14**
+
 ### 中键打开资源管理器并选中文件（TODO #1，受 SuzuEmojy v1.13.2 启发）+ 预览残留修复
 
 - **功能**：`StickerCell` 新增信号 `middleClicked(filePath)`（`mousePressEvent` 改三分支：右键 / 中键 / 其余），动作在 `MainWindow::onStickerMiddleClicked`：`closePreview()` → `m_highlightManager.setHighlightedPath(...)`（沿用 `highlightOnClick` 语义，**先关预览 → 再高亮 → 最后执行**，用户明确要求"先高亮再执行动作"）→ `QProcess::startDetached("explorer.exe", {"/select,", QDir::toNativeSeparators(...)})`（Qt6 两参数重载，含空格路径安全；文件不存在 → `qWarning [MiddleClick]` + 托盘警告）
