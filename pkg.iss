@@ -3,7 +3,7 @@
 ; Non-commercial use only
 
 #ifndef MyAppVersion
-  #define MyAppVersion "2.9.0"
+  #define MyAppVersion "2.10.0"
 #endif
 
 #define MyAppName "StickersManager"

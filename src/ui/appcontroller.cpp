@@ -74,8 +74,17 @@ void AppController::createWindows(const QVector<LibraryConfig> &libs)
         if (!m_windows.contains(lib.path))
         {
             auto *window = new MainWindow(&m_config, lib);
-            m_windows[lib.path] = window;
-            QFileInfo dirInfo(lib.path);
+            // loadLibrary 可能在构造期间把失效路径替换成用户新选的文件夹（addLibrary 按 id 原地更新），
+            // 此后 config/托盘都以新路径为准 → 窗口键与标题取窗口的实际路径
+            const QString actualPath = window->getLibraryConfig().path;
+            if (m_windows.contains(actualPath))
+            {
+                // 两个条目解析到同一文件夹（仅旧版重复条目配置可能出现）→ 保留先建的窗口
+                window->deleteLater();
+                continue;
+            }
+            m_windows[actualPath] = window;
+            QFileInfo dirInfo(actualPath);
             window->setWindowTitle("Stickers Manager - " + dirInfo.fileName());
             window->hide();
         }

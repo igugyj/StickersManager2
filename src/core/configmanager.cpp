@@ -238,10 +238,56 @@ void ConfigManager::setLibraries(const QVector<LibraryConfig> &libs) {
     m_config["libraries"] = libArray;
 }
 
-void ConfigManager::addLibrary(const LibraryConfig &lib) {
+bool ConfigManager::addLibrary(const LibraryConfig &lib) {
     auto libs = getLibraries();
-    libs.append(lib);
+
+    // canonical path 查重：大小写/分隔符/尾斜杠归一后比较（目录不存在时 canonicalPath 为空 → 跳过）
+    const QString canonical = QDir(lib.path).canonicalPath();
+
+    // 同 id 条目已存在 = 「路径失效后换文件夹」的替换语义（MainWindow::loadLibrary 选目录回退）：
+    // 原地更新该条目的 path 而不是追加 —— 追加会让旧死路径残留在 config，下次启动再弹一次选目录框，
+    // 且新旧条目撞 id。查重只对照其它条目（自己的旧路径就是那条失效路径，不排除会永远冲突）。
+    int sameId = -1;
+    if (lib.id >= 0)
+        for (int i = 0; i < libs.size(); ++i)
+            if (libs[i].id == lib.id) { sameId = i; break; }
+    if (sameId >= 0) {
+        if (!canonical.isEmpty()) {
+            for (int j = 0; j < libs.size(); ++j) {
+                if (j == sameId) continue;
+                const QString other = QDir(libs[j].path).canonicalPath();
+                if (!other.isEmpty() && other == canonical)
+                    return false;
+            }
+        }
+        libs[sameId].path = lib.path;
+        setLibraries(libs);
+        return true;
+    }
+
+    if (!canonical.isEmpty()) {
+        for (const auto &existing : libs) {
+            if (!existing.path.isEmpty() && QDir(existing.path).canonicalPath() == canonical)
+                return false;
+        }
+    }
+
+    // id 是顺序标记：新库必须落到数组末尾。默认 -1 会被 setLibraries 排到首位，
+    // 下次 getLibraries 的 legacy 迁移把它改成 0（与已有库撞 id），卡片按 rebuildList 的
+    // 按位兜底 libs[i] 就取到旧库 —— 新卡片显示成已有路径（TODO ③ 的根因）。
+    // 取 maxId+1 而非 libs.size()：removeLibrary 不重编号，存量配置可能有 id 空洞
+    // （如 0、2），size()=2 会撞上已有 id，非稳定排序下新条目仍可能不在数组末尾。
+    LibraryConfig entry = lib;
+    if (entry.id < 0) {
+        int maxId = -1;
+        for (const auto &existing : libs)
+            maxId = qMax(maxId, existing.id);
+        entry.id = maxId + 1;
+    }
+
+    libs.append(entry);
     setLibraries(libs);
+    return true;
 }
 
 QJsonObject ConfigManager::getDefaultConfig() {

@@ -1,3 +1,17 @@
+# Changelog — v2.9.0 → v2.10.0 (2026.10.26)
+
+### Added
+
+- **Middle-click a sticker** to reveal it in Explorer (opens the containing folder with the file selected)
+- While the preview is open, clicking another sticker switches the preview to it
+- A library whose folder doesn't fit the expected layout now shows a short yellow note right on its card in Settings → Libraries — missing folder, no category subfolders, or pictures buried deeper than the first level
+
+### Fixes
+
+- The preview window no longer lingers on screen — it now closes when you middle-click a sticker or hide its window (e.g. after copying)
+- Adding a library no longer ends up pointing at a folder you already use — the new entry keeps the folder you picked, and choosing one you already have tells you so
+- When a library's folder goes missing and you pick a new one, the old folder is replaced instead of lingering — you won't be asked to pick a folder again on every launch
+
 # Changelog — v2.8.0 → v2.9.0 (2026.10.25)
 
 ### Added

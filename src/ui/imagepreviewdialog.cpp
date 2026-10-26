@@ -336,3 +336,19 @@ void ImagePreviewDialog::keyPressEvent(QKeyEvent *event)
 
 void ImagePreviewDialog::onPrev() { showAt(m_index - 1); }
 void ImagePreviewDialog::onNext() { showAt(m_index + 1); }
+
+// 网格左键点击驱动：预览内容跟随点击的 cell。
+// 同类目 → 命中 m_siblings 索引直接 showAt；跨类目/不在列表 → 以该文件所在类目重建 m_siblings。
+void ImagePreviewDialog::setCurrentFile(const QVector<QString> &siblings, const QString &filePath)
+{
+    if (filePath == m_filePath)
+        return;
+    m_siblings = siblings;
+    int idx = m_siblings.indexOf(filePath);
+    if (idx < 0)
+    {
+        m_siblings = QVector<QString>{filePath};
+        idx = 0;
+    }
+    showAt(idx);
+}

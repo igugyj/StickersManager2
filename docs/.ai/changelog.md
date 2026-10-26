@@ -4,6 +4,52 @@
 
 ---
 
+## [2026-10-26]
+
+### 功能：库结构不受支持 → 设置页卡片黄字提示（TODO #2）
+
+- **判定口径（用户拍板，TODO 末行）**：`0 个直接子目录` 或 `直接子目录里没有支持格式图片`（图片埋在更深层同样命中——扫描只解析到直接子目录）；路径为空/不存在单独一档
+- **实现（`librarysettingspage.h/.cpp`）**：
+  - `struct StructureCheck { QString path; QString message; }` + 每卡 `LibraryEditWidgets` 加 `structHint`（QLabel）/`structWatcher`（`QFutureWatcher<StructureCheck>`）
+  - `checkLibraryStructure(libPath)` 静态函数（QtConcurrent 异步跑，照 stats 模式不堵 UI）：类目枚举与 `StickerLibrary::scanLibrary` **完全一致**（`QDir::Dirs|NoDotAndDotDot`、跳 `.preview*`、`ImageLoader::isFormatSupported` 判图）
+  - 三条全 ASCII 文案：`Folder not found` / `No category folders found - stickers must be in subfolders (only direct subfolders are scanned)` / `No images in the category folders - only direct subfolders are scanned, deeper folders are not read`
+  - 黄字 QLabel（`#c47f00`、wordWrap、初始隐藏）插在每卡 path 行下方；`finished` 回调**比对 `result.path == pathEdit->text()`** 防过期结果
+  - 三个触发点：建卡（`rebuildList`，覆盖开对话框/+Add/Save）/ `editingFinished`（**不用 textChanged**，避免逐键输入闪 `Folder not found`）/ `browseLibrary` 换目录
+  - **坑**：`m_libs[i] = w` 之后局部 `w` 不再回写 → 新字段必须直接写 `m_libs[i].structHint/structWatcher`
+- **验收（`tests/test_structure_hint.ps1`，31/31）**：A 基线两库无黄字 → B 清空路径→`Folder not found`、填回消失 → C 填不存在目录同上 → D 加 0 子目录库→M2 → E 加"图片只在深层"库→M3 → F Browse 好目录黄字消失/坏目录重现（并断言另一卡的 M2 不受影响）→ G Cancel 后 config.json 未动。回归 `test_addlib` 29/29、`test_reload_path` 19/19、`test_preview` 14/14
+- **测试基建（四个脚本全部去本机私有路径，全新 clone 可跑）**：
+- **测试素材不入库、一切在项目内（用户要求：测试/构建不使用任何私有仓库目录）**：`tests/fixtures/` 已 gitignore，**唯一生成入口是独立脚本 `tests/make_fixtures.ps1`**（System.Drawing 现场造 60 张 300x300 纯色 PNG + 结构变体，约 1s；可单独 `-File tests\make_fixtures.ps1` 运行，也被 `seed.ps1` dot-source 在每次测试前自动调用，幂等、缺啥补啥）：`lib_a`/`lib_b`（种子两库，各 1 类目 `general/` 30 张贴纸）、`lib_ok`（正常结构）、`lib_deep`（`general/sub/nested.png` → M3）、`lib_empty`（0 子目录 → M2）、`lib_nope` **故意不存在**（失效路径，生成时若存在则删掉）；死路径/stderr 等临时文件也从 `%TEMP%` 收进 **`build/tests_tmp/`**（随 `build/` gitignore），配置本就在 `build/.stickersmanager/` —— 四个 ps1 与 CMake 均已 grep 确认零 `D:/Users`、零 `Pictures`、零 `%TEMP%`
+  - 新增 `tests/seed.ps1`（dot-source 共享）：备份 config/settings（不存在则记录）→ 写种子配置（lib_a id0 热键 `Ctrl+Shift+E`、lib_b id2 热键 `Shift+Ctrl+D`、`logLevel=Debug`、`checkForUpdatesOnStartup=false`、`openSettingsHotkey=Ctrl+I`）→ 清 fixture 键名的 `recent_<md5>.json`（否则启动进 Recent 类目、格子坐标全错）→ teardown `Restore-SmConfig` 还原或删除
+  - 四脚本 `$emo/$ddemo`（`D:/Users/user/Pictures/...`）→ fixture 路径；`test_preview` 的 `exit 1` 早期退出改 `throw`（否则 finally 不还原配置）+ `try/finally` 包裹
+  - **坑**：① powershell.exe 5.1 对**无 BOM 的 .ps1 按 ANSI(GBK) 解码** → 中文注释被误读成散引号、解析崩溃 → 所有 `tests/*.ps1` 一律带 **UTF-8 BOM**（每次 edit 后重跑转换）；② `AutomationElement.FromPoint` 偶发 "Access is denied" → try/catch 包住（`ClickXY` 的 pid 校验仍兜底）；③ 函数内裸字符串 print 会混进返回值数组、把 `if (-not (ClickEl ...))` 恒真 → 诊断输出一律 `Write-Host`；④ 设置对话框（QScrollArea）4 卡时高过屏幕（第 4 卡 Browse y=1037 > 屏 864）→ `Scroll-IntoView` 判据 = 窗口矩 ∩ 屏幕工作区 ∩ **`FromPoint` 命中同名元素**（Qt 矩形会伸出视口裁剪线，只按矩形判会点空）
+
+### 修复：添加仓库时索引到已有仓库路径（TODO #3，三层修法）
+
+- **根因**：`LibrarySettingsPage::addLibrary()` 用 `LibraryConfig(path, hk, true)` 建新库 → `id = -1` → `setLibraries()` 按 id 排序把新条目写到数组**首位** → 下次 `getLibraries()` 的 legacy 迁移给它赋 `id=0`（与已有库撞）→ `rebuildList():336` 的按位兜底 `libCfg = libs[i]` 取到旧库 → **新卡片显示成已有库路径** → 保存后两条 path 相同 → 两个窗口索引同一文件夹
+- **修法（三层）**：
+  1. `ConfigManager::addLibrary()` 改返回 `bool`：canonical path 查重（重复返回 false）+ `id < 0` 时补 id。id 取 **`maxId+1` 而非原方案的 `libs.size()`** —— `removeLibrary()` 不重编号，存量配置可能有 id 空洞（本机测试配置就是 0、2），`size()`=2 会撞已有 id，`std::sort` 非稳定下新条目仍可能不在数组末位，按位兜底照样取错
+  2. `collectToConfig()` 存盘前加**重复路径校验**（canonical/cleanPath 归一 + toLower，照 829 行重复热键的写法）→ 拦掉 Browse 把卡片改成已有路径这条旁路；失败时 `onSave` 早退不落盘
+  3. 重复时弹 `QMessageBox::information("Library Already Exists")`（原先静默 return「什么都没发生」）—— 设置页 `addLibrary()` 与 `MainWindow::loadLibrary()` 两个调用方都改接 bool，后者重复时回退 `m_libConfig.path` 并 warning
+- **验收（powershell + UIA 自动化，29/29，脚本 `tests/test_addlib.ps1`）**：文件对话框用 `ValuePattern.SetValue` 直填完整路径绕开中文 IME（Qt 源码确认链路：lineEdit `returnPressed` → `accept()` → `typedFiles()` 原样取文本，且 `autoCompleteFileName` 会把输入的目录选进列表）；所有点击先 `WindowFromPoint` 校验 pid、`AutomationElement.FromPoint` 校验命中控件，防误点。断言：A 新增库后 3 张卡路径各自正确（bug 症状未复现）、落盘 `ids=[0,2,3]` 升序、新库在数组末位、路径唯一；B 再选同一路径弹 "Library Already Exists"、不加卡不落盘；C 把卡片改成已有路径 Save 弹 "Duplicate Library Path"、保存被拦。回归 `test_preview.ps1` **14/14**
+- **相邻问题一并修复：失效路径是 append 而非 update**（用户拍板"修"）：`MainWindow::loadLibrary()` 选了新文件夹后，旧死路径条目残留在 config（还与新条目撞 id）→ 下次启动再弹一次选目录框。修法：`addLibrary()` 检测 **同 id 条目已存在** → 原地更新该条目的 path（查重排除自身，自己的旧路径就是那条失效路径）；否则走补 id + canonical 查重的追加分支。配套：`createWindows()` 的窗口键与标题改取 `window->getLibraryConfig().path`（实际路径，loadLibrary 可能在构造期间替换过路径），含同文件夹重复条目（仅旧版遗留配置）时 deleteLater 先建者保留
+  - **专项验收（`tests/test_reload_path.ps1`，19/19）**：P1 死路径启动弹框→选回原文件夹 → config 仍 2 条 ids[0,2]、死路径被原地替换、Ctrl+Shift+E 开出 `Stickers Manager - emo`；P2 重启不再弹框、窗口正常；P3 再改死→选已有库 ddemo → 弹 `Library Already Exists`、config 未动。回归 `test_addlib.ps1` **29/29**、`test_preview.ps1` **14/14**
+
+### 中键打开资源管理器并选中文件（TODO #1，受 SuzuEmojy v1.13.2 启发）+ 预览残留修复
+
+- **功能**：`StickerCell` 新增信号 `middleClicked(filePath)`（`mousePressEvent` 改三分支：右键 / 中键 / 其余），动作在 `MainWindow::onStickerMiddleClicked`：`closePreview()` → `m_highlightManager.setHighlightedPath(...)`（沿用 `highlightOnClick` 语义，**先关预览 → 再高亮 → 最后执行**，用户明确要求"先高亮再执行动作"）→ `QProcess::startDetached("explorer.exe", {"/select,", QDir::toNativeSeparators(...)})`（Qt6 两参数重载，含空格路径安全；文件不存在 → `qWarning [MiddleClick]` + 托盘警告）
+- **双击复制限左键**：`mouseDoubleClickEvent` 原本除右键外都复制 → 中键双击会"复制 + 连开两次资源管理器"，改为 `button() != Qt::LeftButton` 直接 return
+- **预览残留 bug（用户发现）**：`ImagePreviewDialog` 是**独立 top-level 窗口**，双击复制时 `onStickerDoubleClicked` 只 `hide()` 主窗口，预览不随父窗口隐藏 → 双击后预览一直挂着
+  - **最终设计（用户三轮拍板）**：挂在两处 —— `MainWindow::hideEvent` 开头 `closePreview()`（**随仓库窗口隐藏而隐藏，隐即关闭、再次显示不恢复**）+ **中键开头 `closePreview()`**（用户先定"中键不管"、后改口"中键也关"）；三处调用 = 右键 toggle / hideEvent / 中键
+  - **顺序红线**：`closePreview()` → `finished` → `onPreviewClosed()` 会 `clearHighlight()`，所以中键里它必须排在 `setHighlightedPath` **之前**，否则高亮刚设就被清掉（验收日志 `setHighlightedPath: "<path>" old: ""` 正是该顺序的实证）
+  - `closePreview()` 为幂等助手（`accept()` → 置空 `m_previewDlg` + 防御性再置空）
+- **预览跟随点击（用户追加需求"点 cell → 预览切图"）**：此前左键只高亮、预览停在原图。新增 `ImagePreviewDialog::setCurrentFile(siblings, filePath)`（同类目命中 `m_siblings` 索引 → `showAt`；跨类目以该文件所在类目重建列表，兜底单元素；路径相同直接 return 不重载），由 `MainWindow::onStickerClicked` 在 `m_previewDlg` 非空时调用；抽出私有助手 `categorySiblings(filePath)`，与右键开预览共用同一段取 siblings 的逻辑
+- **验收（pwsh 自动化 harness，14/14 通过，无残留进程/窗口）**：右键开预览 → **左键点另一个 cell → 预览切图**（`onPreviewFileChanged` 0→1，且其路径 == 点击 cell 的 `setHighlightedPath` 路径）且预览保持打开 → 中键（选在预览矩形外的 cell）→ **预览关闭** + 新增 explorer 窗口 + `setHighlightedPath` 非空路径 + 无 `[MiddleClick]` 告警 → 右键重新开预览 → 双击同 cell → **预览关闭（hideEvent 路径）** + 主窗口隐藏 + `Successfully copied file to clipboard`；热键恢复主窗口 → 左键不开 explorer、不开预览
+- **harness 坑（复用注意）**：
+  - `mouse_event` 中键标志是 **MIDDLEDOWN=0x0020 / MIDDLEUP=0x0040**（0x0010 是 RIGHTUP、0x0002/0x0004 才是左键）—— 记错就完全点不出事件，表现为"三项交互全失败但左键高亮正常"
+  - 预览对话框**没有显式标题** → Windows 上标题取应用名 `Stickers Manager`（不是空串）；另有 1 个 0×0 尺寸的 Qt 助手窗口常驻，枚举时须按"尺寸 ≥50 且居中"过滤，否则误判
+  - 预览居中覆盖主窗口大半，测"预览开着时点 cell"必须选**预览矩外**的 cell，否则点击落在预览上
+  - 日志时间戳格式含 12/24 小时歧义 → 断言改用**匹配行计数前后差**，不用时间戳字符串比较
+
 ## [2026-10-25]
 
 ### 修复：切类目/滚动剪枝泄漏 QMovie（隐藏后 private bytes 不回落 784MB 根因）

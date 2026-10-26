@@ -74,6 +74,7 @@ private slots:
     void onStickerClicked(const QString &filePath);
     void onStickerDoubleClicked(const QString &filePath);
     void onStickerRightClicked(const QString &filePath);
+    void onStickerMiddleClicked(const QString &filePath);
     void delayedSearch();
     void onThumbnailLoaded(const QString &filePath, const QPixmap &pixmap);
     void handleThumbnailLoaded(const QString &filePath, const QPixmap &pixmap);
@@ -96,6 +97,8 @@ private:
     void recalculateGridColumns();
     void updateCellVisibility();
     bool refreshRecentButton();
+    void closePreview(); // 关闭预览窗口（幂等：m_previewDlg 已空则无操作）
+    QVector<QString> categorySiblings(const QString &filePath) const; // 文件所在类目的贴纸列表
 
     ConfigManager *m_config;
     StickerLibrary *m_library;
