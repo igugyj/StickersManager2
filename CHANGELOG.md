@@ -1,9 +1,10 @@
-# Changelog — v2.9.0 → v2.10.x  (unrelease)
+# Changelog — v2.9.0 → v2.10.0 (2026.10.26)
 
 ### Added
 
 - **Middle-click a sticker** to reveal it in Explorer (opens the containing folder with the file selected)
 - While the preview is open, clicking another sticker switches the preview to it
+- A library whose folder doesn't fit the expected layout now shows a short yellow note right on its card in Settings → Libraries — missing folder, no category subfolders, or pictures buried deeper than the first level
 
 ### Fixes
 

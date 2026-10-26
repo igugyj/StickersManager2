@@ -3,6 +3,7 @@
 
 #include <QWidget>
 #include <QVector>
+#include <QString>
 
 class ConfigManager;
 struct LibraryConfig;
@@ -16,6 +17,12 @@ class QLabel;
 class QTableWidget;
 template <typename T> class QFutureWatcher;
 class HotkeyCaptureButton;
+
+// 卡片结构检查结果（TODO ②：路径无效/无类目/无图片时卡片挂黄字提示）
+struct StructureCheck {
+    QString path;     // 检查时的路径（finished 里比对，防过期结果）
+    QString message;  // 空 = 结构正常（不显示提示）
+};
 
 struct LibraryEditWidgets {
     int libId = -1;
@@ -46,6 +53,9 @@ struct LibraryEditWidgets {
     QLabel *statsLabel = nullptr;
     QTableWidget *statsTable = nullptr;
     QFutureWatcher<QStringList> *statsWatcher = nullptr;
+    // structure hint (yellow label under the path row, TODO ②)
+    QLabel *structHint = nullptr;
+    QFutureWatcher<StructureCheck> *structWatcher = nullptr;
 };
 
 class LibrarySettingsPage : public QWidget {
@@ -69,6 +79,7 @@ private:
     bool hotkeyInUse(int skipIdx, const QString &hk) const;
     void swapLibraries(int a, int b);
     void syncCardIndices();
+    void startStructureCheck(int index);
     LibraryConfig collectOne(int index) const;
 };
 

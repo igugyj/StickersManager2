@@ -12,3 +12,4 @@ docs/structure
 *.zip
 *.rar
 /TODO
+/tests/fixtures/

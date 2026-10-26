@@ -85,6 +85,48 @@ static QStringList computeLibraryStats(const QString &libPath)
     return result;
 }
 
+// 结构检查（TODO ②）：库路径能否被 scanLibrary 解析出内容。
+// 判定口径：0 个直接子目录，或直接子目录里没有支持格式的图片
+// （图片埋在更深层目录 = 直接子目录里没有，同样命中；扫描只解析到直接子目录）。
+// 文案全 ASCII（避免脚本/编码链路上的非 ASCII 比对问题）
+static StructureCheck checkLibraryStructure(const QString &libPath)
+{
+    StructureCheck r;
+    r.path = libPath.trimmed();
+    const QDir root(r.path);
+    if (r.path.isEmpty() || !root.exists()) {
+        r.message = "Folder not found";
+        return r;
+    }
+    // 与 StickerLibrary::scanLibrary 完全一致的类目枚举：只取直接子目录（不含隐藏）
+    const QStringList categoryDirs = root.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    if (categoryDirs.isEmpty()) {
+        r.message = "No category folders found - stickers must be in subfolders "
+                    "(only direct subfolders are scanned)";
+        return r;
+    }
+    bool hasImage = false;
+    for (const QString &name : categoryDirs) {
+        const auto files = QDir(r.path + '/' + name).entryInfoList(QDir::Files);
+        for (const QFileInfo &fi : files) {
+            if (isPreviewFile(fi.fileName()))
+                continue;
+            if (ImageLoader::isFormatSupported(fi.absoluteFilePath())) {
+                hasImage = true;
+                break;
+            }
+        }
+        if (hasImage)
+            break;
+    }
+    if (!hasImage) {
+        r.message = "No images in the category folders - only direct subfolders "
+                    "are scanned, deeper folders are not read";
+        return r;
+    }
+    return r; // message 空 = 结构正常
+}
+
 static const char *kLibraryDragMime = "application/x-stickersmanager-library";
 static const char *kCardDragStyle = "QGroupBox { border: 2px dashed #3a7bd5; background: rgba(58, 123, 213, 0.08); }";
 static const char *kCardFlashStyle = "QGroupBox { border: 2px solid #3a7bd5; background: rgba(58, 123, 213, 0.10); }";
@@ -365,6 +407,12 @@ void LibrarySettingsPage::rebuildList() {
         pathRow->addWidget(pathEdit);
         pathRow->addWidget(browseBtn);
 
+        // 结构提示（黄字，TODO ②）：路径无效 / 无类目 / 直接子目录里没有图片时挂在 path 行下方
+        auto *structHint = new QLabel(card);
+        structHint->setWordWrap(true);
+        structHint->setStyleSheet("QLabel { color: #c47f00; }");
+        structHint->setVisible(false);
+
         // Row 2: hotkey + enabled
         int idx = i;
         auto *hkRow = new QHBoxLayout;
@@ -566,6 +614,7 @@ void LibrarySettingsPage::rebuildList() {
         m_libs[i] = w;
 
         cardLayout->addLayout(pathRow);
+        cardLayout->addWidget(structHint);
         cardLayout->addLayout(hkRow);
         cardLayout->addWidget(overrideToggle);
         cardLayout->addWidget(overrideWidget);
@@ -639,6 +688,25 @@ void LibrarySettingsPage::rebuildList() {
         w.statsTable = statsTable;
         w.statsWatcher = statsWatcher;
 
+        // 结构检查（TODO ②）：每卡一个 watcher + QtConcurrent（照 stats 模式，不堵 UI）。
+        // 注意字段直接写 m_libs[i] —— 上面 m_libs[i] = w 之后局部 w 不再回写
+        auto *structWatcher = new QFutureWatcher<StructureCheck>(card);
+        connect(structWatcher, &QFutureWatcher<StructureCheck>::finished, structHint,
+                [pathEdit, structHint, structWatcher]() {
+                    const StructureCheck r = structWatcher->result();
+                    if (pathEdit->text().trimmed() != r.path)
+                        return; // 检查期间路径已被改，等下一次触发覆盖
+                    structHint->setText(r.message);
+                    structHint->setVisible(!r.message.isEmpty());
+                });
+        m_libs[i].structHint = structHint;
+        m_libs[i].structWatcher = structWatcher;
+        // 触发点 2/3：手动编辑路径（失焦 / Enter）。不用 textChanged —— 逐键输入会闪 Folder not found
+        connect(pathEdit, &QLineEdit::editingFinished, structHint,
+                [this, idx]() { startStructureCheck(idx); });
+        // 触发点 1/3：建卡（打开对话框 / + Add Library / Save 后的 rebuildList 都走这里）
+        startStructureCheck(i);
+
         connect(hotkeyBtn, &HotkeyCaptureButton::hotkeyChanged, this, &LibrarySettingsPage::validateAllHotkeys);
         connect(enabledCheck, &QCheckBox::toggled, this, &LibrarySettingsPage::validateAllHotkeys);
         connect(browseBtn, &QPushButton::clicked, this, [this, idx]() { browseLibrary(idx); });
@@ -680,6 +748,18 @@ void LibrarySettingsPage::syncCardIndices()
         if (auto *card = dynamic_cast<DraggableLibraryCard *>(m_listLayout->itemAt(i)->widget()))
             card->m_listIndex = i;
     }
+}
+
+// 结构检查触发点：对 index 卡的当前 path 异步跑 checkLibraryStructure（TODO ②）
+void LibrarySettingsPage::startStructureCheck(int index)
+{
+    if (index < 0 || index >= m_libs.size())
+        return;
+    auto &w = m_libs[index];
+    if (!w.structWatcher || !w.pathEdit)
+        return;
+    const QString path = w.pathEdit->text().trimmed();
+    w.structWatcher->setFuture(QtConcurrent::run([path]() { return checkLibraryStructure(path); }));
 }
 
 void LibrarySettingsPage::addLibrary() {
@@ -732,6 +812,8 @@ void LibrarySettingsPage::browseLibrary(int index) {
         QFileDialog::ShowDirsOnly | QFileDialog::DontUseNativeDialog);
     if (!path.isEmpty()) {
         m_libs[index].pathEdit->setText(path);
+        // 触发点 3/3：Browse 换了目录 → 重查结构
+        startStructureCheck(index);
     }
 }
 
